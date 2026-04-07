@@ -20,12 +20,6 @@ Pick a date and get a summary: nutrition vs targets, key habits, recent notes, a
 
 ---
 
-## Who it’s for
-
-This app is aimed at **one person with clear goals**: someone who wants structure, history, and honesty in one place—whether you’re cutting, bulking, or just staying accountable.
-
----
-
 ## For developers
 
 The app is a Next.js project backed by PostgreSQL (e.g. Neon). To run locally:
