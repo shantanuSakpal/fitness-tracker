@@ -1,8 +1,76 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import type { FoodEntry } from "@/lib/types";
 import { EmptyState } from "@/components/common/EmptyState";
-import { formatDisplayDate } from "@/lib/utils";
+import { cn, formatDisplayDate } from "@/lib/utils";
+
+type FoodSortKey =
+  | "foodName"
+  | "weightGrams"
+  | "calories"
+  | "protein"
+  | "fat"
+  | "fiber";
+
+function compareFoodRows(a: FoodEntry, b: FoodEntry, key: FoodSortKey): number {
+  if (key === "foodName") {
+    const cmp = a.foodName.localeCompare(b.foodName, undefined, {
+      sensitivity: "base",
+    });
+    if (cmp !== 0) return cmp;
+  } else {
+    const va = a[key] ?? 0;
+    const vb = b[key] ?? 0;
+    if (va !== vb) return va < vb ? -1 : 1;
+  }
+  return a.id.localeCompare(b.id);
+}
+
+function SortableTh({
+  label,
+  sortKey: columnKey,
+  activeKey,
+  sortDir,
+  onSort,
+}: {
+  label: string;
+  sortKey: FoodSortKey;
+  activeKey: FoodSortKey | null;
+  sortDir: "asc" | "desc";
+  onSort: (k: FoodSortKey) => void;
+}) {
+  const active = activeKey === columnKey;
+  return (
+    <th
+      className="px-3 py-3"
+      aria-sort={
+        active
+          ? sortDir === "asc"
+            ? "ascending"
+            : "descending"
+          : undefined
+      }
+    >
+      <button
+        type="button"
+        onClick={() => onSort(columnKey)}
+        className={cn(
+          "-ml-1 inline-flex items-center gap-1 rounded px-1 py-0.5 text-left uppercase tracking-wide transition-colors hover:bg-zinc-100 hover:text-zinc-700",
+          active ? "text-zinc-900" : "text-zinc-500"
+        )}
+        title={`Sort by ${label}`}
+      >
+        <span>{label}</span>
+        {active ? (
+          <span aria-hidden className="font-normal normal-case text-zinc-600">
+            {sortDir === "asc" ? "↑" : "↓"}
+          </span>
+        ) : null}
+      </button>
+    </th>
+  );
+}
 
 export function FoodTable({
   rows,
@@ -17,6 +85,26 @@ export function FoodTable({
   onDelete: (id: string) => void;
   busyId: string | null;
 }) {
+  const [sortKey, setSortKey] = useState<FoodSortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows;
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...rows].sort(
+      (a, b) => compareFoodRows(a, b, sortKey) * dir
+    );
+  }, [rows, sortKey, sortDir]);
+
+  function handleSort(key: FoodSortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
   if (rows.length === 0) {
     return (
       <EmptyState
@@ -35,20 +123,56 @@ export function FoodTable({
               {showDateColumn ? (
                 <th className="px-3 py-3">Date</th>
               ) : null}
-              <th className="px-3 py-3">Food</th>
-              <th className="px-3 py-3">Wt (g)</th>
+              <SortableTh
+                label="Food"
+                sortKey="foodName"
+                activeKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
+              <SortableTh
+                label="Wt (g)"
+                sortKey="weightGrams"
+                activeKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
               <th className="px-3 py-3">Cnt</th>
-              <th className="px-3 py-3">Cal</th>
-              <th className="px-3 py-3">P (g)</th>
-              <th className="px-3 py-3">F (g)</th>
-              <th className="px-3 py-3">Fib (g)</th>
+              <SortableTh
+                label="Cal"
+                sortKey="calories"
+                activeKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
+              <SortableTh
+                label="P (g)"
+                sortKey="protein"
+                activeKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
+              <SortableTh
+                label="F (g)"
+                sortKey="fat"
+                activeKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
+              <SortableTh
+                label="Fib (g)"
+                sortKey="fiber"
+                activeKey={sortKey}
+                sortDir={sortDir}
+                onSort={handleSort}
+              />
               <th className="px-3 py-3">Fruit</th>
               <th className="px-3 py-3">Notes</th>
               <th className="px-3 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
-            {rows.map((r) => (
+            {sortedRows.map((r) => (
               <tr key={r.id} className="text-zinc-800">
                 {showDateColumn ? (
                   <td className="whitespace-nowrap px-3 py-3 text-zinc-600">
