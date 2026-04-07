@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Fitness OS
 
-## Getting Started
+A personal fitness companion that helps you see **one day at a time**: what you ate, how you moved and slept, how you felt, and how your body is changing—without drowning in spreadsheets.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## What you can do
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Log what you eat**  
+Add meals and snacks with calories, protein, fat, and fibre. You can note weight or portions, mark items as fruit when you want them to count toward your fruit goal, and attach quick notes. Everything is organized by date so you can look back at any day.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**Track your daily inputs**  
+Set targets and record progress for the habits that matter to you: calories and protein, training, sleep, steps, easy walks, Zone 2 cardio, water, fibre, and fruit. It’s built to mirror how you actually plan a day—not just numbers, but did you train, rest, and move?
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**Record how you’re doing on the outside**  
+On the outputs side, log measurements (weight, waist, and more), how your energy and mood felt, recovery, and space for a progress photo link. Over time you get a clearer picture of trends, not just a single snapshot.
 
-## Learn More
+**See it all on the dashboard**  
+Pick a date and get a summary: nutrition vs targets, key habits, recent notes, and how your weight is trending. A streak helps you stay consistent—one honest day after another.
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Who it’s for
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+This app is aimed at **one person with clear goals**: someone who wants structure, history, and honesty in one place—whether you’re cutting, bulking, or just staying accountable.
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## For developers
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The app is a Next.js project backed by PostgreSQL (e.g. Neon). To run locally:
+
+1. Create a database and set `POSTGRES_URL` in `.env` (see `.env.example`).
+2. Apply the schema: `npm run db:push`
+3. Start the app: `npm run dev`
+
+For production, configure the same database URL on your host and run `npm run build` after migrations are applied to the production database.
