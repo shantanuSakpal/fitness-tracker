@@ -61,12 +61,12 @@ export function InputsClient() {
         <DateSelectorBar className="max-w-md" />
       </header>
 
-      <section>
+      {/* <section>
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
           Summary
         </h2>
         {loading ? <Loader /> : <InputSummary record={record} />}
-      </section>
+      </section> */}
 
       {loading ? (
         <Loader />

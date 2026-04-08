@@ -592,6 +592,7 @@ export async function getDashboardSummary(dateIso: string): Promise<DashboardSum
     trainingDone: input ? input.trainingDone : null,
     sleepHours: input?.sleepHours ?? null,
     stepCount: input?.stepCount ?? null,
+    waterIntake: input ? input.waterIntake.trim() || null : null,
     zone2Done: input ? input.zone2Done : null,
     latestBodyWeight: latest?.bodyWeight ?? null,
     latestBodyWeightDate: latest?.date ?? null,

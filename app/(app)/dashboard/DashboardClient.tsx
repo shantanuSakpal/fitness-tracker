@@ -98,7 +98,7 @@ export function DashboardClient() {
             <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
               Day at a glance
             </h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {/* <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <SummaryCard
                 title="Protein (g)"
                 value={
@@ -237,7 +237,7 @@ export function DashboardClient() {
                     : undefined
                 }
               />
-            </div>
+            </div> */}
           </section>
 
           <InputProgressBars summary={summary} />

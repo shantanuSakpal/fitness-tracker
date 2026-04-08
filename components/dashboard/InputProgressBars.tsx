@@ -1,7 +1,12 @@
 "use client";
 
 import type { DashboardSummary } from "@/lib/types";
-import { INPUT_TARGETS, formatTargetInt } from "@/lib/inputTargets";
+import {
+  INPUT_TARGETS,
+  formatTargetInt,
+  parseWaterLiters,
+  waterTargetLabel,
+} from "@/lib/inputTargets";
 
 function pct(consumed: number, target: number): number {
   if (target <= 0) return 0;
@@ -18,6 +23,11 @@ export function InputProgressBars({ summary }: { summary: DashboardSummary }) {
   const fruits = summary.fruitsConsumed ?? 0;
   const sleep = summary.sleepHours ?? 0;
   const steps = summary.stepCount ?? 0;
+  const waterParsed =
+    summary.waterIntake != null
+      ? parseWaterLiters(summary.waterIntake)
+      : null;
+  const waterLiters = waterParsed ?? 0;
 
   const calPct = pct(cal, INPUT_TARGETS.CALORIES);
   const proPct = pct(pro, INPUT_TARGETS.PROTEIN_G);
@@ -25,6 +35,14 @@ export function InputProgressBars({ summary }: { summary: DashboardSummary }) {
   const fruitsPct = pct(fruits, INPUT_TARGETS.FRUITS_G);
   const sleepPct = pct(sleep, INPUT_TARGETS.SLEEP_HOURS);
   const stepsPct = pct(steps, INPUT_TARGETS.STEPS);
+  const waterPct = pct(waterLiters, INPUT_TARGETS.WATER_LITERS);
+
+  const waterSub =
+    waterParsed != null
+      ? `${waterParsed} / ${waterTargetLabel()}`
+      : summary.waterIntake
+        ? `${summary.waterIntake} · target ${waterTargetLabel()}`
+        : `0 / ${waterTargetLabel()}`;
 
   return (
     <section className="rounded-xl border border-zinc-200/80 bg-white p-4 shadow-sm">
@@ -58,6 +76,12 @@ export function InputProgressBars({ summary }: { summary: DashboardSummary }) {
           pct={fruitsPct}
           barClass="bg-lime-600"
           sub={`${fruits} / ${INPUT_TARGETS.FRUITS_G} g`}
+        />
+        <BarBlock
+          label="Water"
+          pct={waterPct}
+          barClass="bg-blue-500"
+          sub={waterSub}
         />
         <BarBlock
           label="Sleep"

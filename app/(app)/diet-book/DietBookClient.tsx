@@ -1,8 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { SummaryCard } from "@/components/common/SummaryCard";
-import { DateSelectorBar } from "@/components/common/DateSelector";
 import { Loader } from "@/components/common/Loader";
 import { FoodForm } from "@/components/food/FoodForm";
 import { FoodTable } from "@/components/food/FoodTable";
@@ -16,13 +14,14 @@ import {
 import type { FoodEntry } from "@/lib/types";
 import { todayISODate } from "@/lib/utils";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
-export function FoodClient() {
-  const searchParams = useSearchParams();
-  const selectedDate = searchParams.get("date")?.slice(0, 10) || todayISODate();
+function entryFormDate(entry: FoodEntry | null): string {
+  const raw = entry?.date?.slice(0, 10) ?? "";
+  return /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(raw) ? raw : todayISODate();
+}
 
+export function DietBookClient() {
   const [rows, setRows] = useState<FoodEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<FoodEntry | null>(null);
@@ -36,7 +35,7 @@ export function FoodClient() {
       setRows(data);
     } catch (e) {
       toast.error(
-        e instanceof GasApiError ? e.message : "Failed to load food list"
+        e instanceof GasApiError ? e.message : "Failed to load food history"
       );
     } finally {
       setLoading(false);
@@ -48,15 +47,23 @@ export function FoodClient() {
     setEditing(null);
   }, [load]);
 
-  const displayRows = useMemo(
-    () => rows.filter((r) => r.date === selectedDate),
-    [rows, selectedDate]
-  );
+  const sortedRows = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      const da = a.date || "";
+      const db = b.date || "";
+      if (da !== db) return db.localeCompare(da);
+      return b.id.localeCompare(a.id);
+    });
+  }, [rows]);
 
-  const dayCount = useMemo(
-    () => rows.filter((r) => r.date === selectedDate).length,
-    [rows, selectedDate]
-  );
+  const dateSpan = useMemo(() => {
+    const dates = rows
+      .map((r) => r.date)
+      .filter((d): d is string => Boolean(d && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(d)));
+    if (dates.length === 0) return null;
+    const sorted = [...dates].sort();
+    return { min: sorted[0]!, max: sorted[sorted.length - 1]! };
+  }, [rows]);
 
   async function onSubmit(payload: {
     date: string;
@@ -87,7 +94,7 @@ export function FoodClient() {
           isFruit: payload.isFruit,
           notes: payload.notes,
         });
-        toast.success("Food updated — daily inputs synced for that date");
+        toast.success("Entry updated — daily inputs synced for that date");
       } else {
         await createFood({
           date: payload.date,
@@ -101,9 +108,7 @@ export function FoodClient() {
           isFruit: payload.isFruit,
           notes: payload.notes,
         });
-        toast.success(
-          "Food logged — inputs updated (calories, protein, fibre, fruit)"
-        );
+        toast.success("Food logged");
       }
       setEditing(null);
       await load();
@@ -117,7 +122,7 @@ export function FoodClient() {
   async function onDelete(id: string) {
     if (
       typeof window !== "undefined" &&
-      !window.confirm("Delete this food entry?")
+      !window.confirm("Delete this food entry from your diet book?")
     )
       return;
     setBusyId(id);
@@ -133,53 +138,52 @@ export function FoodClient() {
     }
   }
 
+  const formDate = entryFormDate(editing);
+
   return (
     <div className="mx-auto max-w-6xl space-y-8">
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
-          Log food
+          Your Diet Book
         </h1>
         <p className="text-sm text-zinc-600">
-          Each entry is saved for a calendar day. Totals for that day are
-          written to <span className="font-medium text-zinc-800">Inputs</span>{" "}
-          as calories, protein, and fibre consumed (sum of all food on that
-          date). Browse everything you have ever logged in{" "}
+          Everything you have logged, newest days first—searchable, sortable
+          columns, like a personal food database. Add new meals on{" "}
           <Link
-            href="/diet-book"
+            href="/food"
             className="font-medium text-zinc-900 underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-600"
           >
-            Your Diet Book
+            Log food
           </Link>
           .
         </p>
+        {dateSpan && (
+          <p className="text-xs text-zinc-500">
+            {rows.length} entr{rows.length === 1 ? "y" : "ies"} across{" "}
+            {dateSpan.min === dateSpan.max
+              ? dateSpan.min
+              : `${dateSpan.min} → ${dateSpan.max}`}
+          </p>
+        )}
       </header>
-      <div className="flex gap-4">
-        <DateSelectorBar className="w-1/2" />
 
-        <div className="flex flex-col gap-4 w-1/2">
-          <SummaryCard
-            title="Entries this day"
-            value={dayCount}
-            hint={`Date ${selectedDate}`}
-            className="w-full"
-          />
-        </div>
-      </div>
-
-      <FoodForm
-        selectedDate={selectedDate}
-        editing={editing}
-        onSubmit={onSubmit}
-        onCancelEdit={() => setEditing(null)}
-        busy={busy}
-      />
+      {editing ? (
+        <FoodForm
+          selectedDate={formDate}
+          editing={editing}
+          onSubmit={onSubmit}
+          onCancelEdit={() => setEditing(null)}
+          busy={busy}
+          dateHint="This entry stays on its calendar date when you save. Use Log food to add items for a selected day."
+        />
+      ) : null}
 
       {loading ? (
         <Loader />
       ) : (
         <FoodTable
-          rows={displayRows}
-          showDateColumn={false}
+          rows={sortedRows}
+          showDateColumn
           onEdit={setEditing}
           onDelete={onDelete}
           busyId={busyId}

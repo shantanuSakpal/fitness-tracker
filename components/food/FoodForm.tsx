@@ -27,6 +27,7 @@ export function FoodForm({
   onSubmit,
   onCancelEdit,
   busy,
+  dateHint = "This log line uses the date from the selector at the top of the page.",
 }: {
   selectedDate: string;
   editing: FoodEntry | null;
@@ -45,6 +46,8 @@ export function FoodForm({
   }) => Promise<void>;
   onCancelEdit: () => void;
   busy: boolean;
+  /** Explains where the saved calendar date comes from (Log food vs Diet book). */
+  dateHint?: string;
 }) {
   const [form, setForm] = useState(empty);
   const [error, setError] = useState<string | null>(null);
@@ -163,9 +166,7 @@ export function FoodForm({
           {error}
         </p>
       )}
-      <p className="mt-2 text-xs text-zinc-500">
-        This log line uses the date from the selector at the top of the page.
-      </p>
+      <p className="mt-2 text-xs text-zinc-500">{dateHint}</p>
       <p className="mt-1 text-xs text-zinc-500">
         <span className="font-medium text-zinc-700">Calories and macros</span>{" "}
         are saved exactly as you enter them.

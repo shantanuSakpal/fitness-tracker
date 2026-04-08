@@ -80,6 +80,8 @@ export interface DashboardSummary {
   trainingDone: boolean | null;
   sleepHours: number | null;
   stepCount: number | null;
+  /** Free-text water intake from inputs (e.g. "3.5 L") for dashboard display */
+  waterIntake: string | null;
   zone2Done: boolean | null;
   latestBodyWeight: number | null;
   latestBodyWeightDate: ISODate | null;

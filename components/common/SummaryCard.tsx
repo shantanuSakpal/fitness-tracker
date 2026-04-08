@@ -37,7 +37,7 @@ export function SummaryCard({
       <p className="mt-1 text-2xl font-semibold tracking-tight text-zinc-900">
         {value}
       </p>
-      {hint && <p className="mt-1 text-xs text-zinc-500">{hint}</p>}
+      {/* {hint && <p className="mt-1 text-xs text-zinc-500">{hint}</p>} */}
     </div>
   );
 }
