@@ -4,6 +4,7 @@ import { DateSelectorBar } from "@/components/common/DateSelector";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Loader } from "@/components/common/Loader";
 import { SummaryCard } from "@/components/common/SummaryCard";
+import { InputProgressBars } from "@/components/dashboard/InputProgressBars";
 import { fetchDashboardSummary, fetchTrendData, GasApiError } from "@/lib/api";
 import type { DashboardSummary, TrendPoint } from "@/lib/types";
 import { INPUT_TARGETS, formatTargetInt } from "@/lib/inputTargets";
@@ -214,7 +215,7 @@ export function DashboardClient() {
                 }
               />
               <SummaryCard
-                title="Zone 2"
+                title="Cardio"
                 value={
                   summary.zone2Done === null
                     ? "—"
@@ -239,7 +240,9 @@ export function DashboardClient() {
             </div>
           </section>
 
-          <section className="grid gap-4 lg:grid-cols-2">
+          <InputProgressBars summary={summary} />
+
+          {/* <section className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-xl border border-zinc-200/80 bg-white p-4 shadow-sm">
               <h3 className="text-sm font-semibold text-zinc-900">Notes</h3>
               <p className="mt-2 text-xs font-medium uppercase text-zinc-500">
@@ -261,7 +264,7 @@ export function DashboardClient() {
               hint="Training logged yes, counting back from today"
               variant={summary.streakDays > 0 ? "success" : "muted"}
             />
-          </section>
+          </section> */}
 
           <section>
             <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">

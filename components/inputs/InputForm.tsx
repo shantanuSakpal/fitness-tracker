@@ -2,10 +2,9 @@
 
 import type { InputRecord, SaveInputsPayload } from "@/lib/types";
 import { INPUT_TARGETS, formatTargetInt } from "@/lib/inputTargets";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type InputFormState = {
-  /** String so new days can show blank fields; empty saves as 0 */
   caloriesConsumed: string;
   proteinConsumed: string;
   sleepHours: string;
@@ -19,7 +18,6 @@ type InputFormState = {
   walkAfterDinner: boolean;
   zone2Done: boolean;
   notes: string;
-  id?: string;
 };
 
 function emptyForm(): InputFormState {
@@ -55,385 +53,534 @@ function recordToForm(r: InputRecord): InputFormState {
     walkAfterDinner: r.walkAfterDinner,
     zone2Done: r.zone2Done,
     notes: r.notes,
-    id: r.id,
   };
+}
+
+function recordToSavePayload(r: InputRecord, date: string): SaveInputsPayload {
+  return {
+    date,
+    id: r.id,
+    caloriesTarget: INPUT_TARGETS.CALORIES,
+    proteinTarget: INPUT_TARGETS.PROTEIN_G,
+    caloriesConsumed: r.caloriesConsumed,
+    proteinConsumed: r.proteinConsumed,
+    trainingDone: r.trainingDone,
+    trainingNotes: r.trainingNotes,
+    sleepHours: r.sleepHours,
+    stepCount: r.stepCount,
+    walkAfterLunch: r.walkAfterLunch,
+    walkAfterDinner: r.walkAfterDinner,
+    zone2Done: r.zone2Done,
+    waterIntake: r.waterIntake,
+    notes: r.notes,
+    fiberConsumed: r.fiberConsumed ?? 0,
+    fruitsConsumed: r.fruitsConsumed ?? 0,
+  };
+}
+
+function emptySavePayload(date: string): SaveInputsPayload {
+  return {
+    date,
+    caloriesTarget: INPUT_TARGETS.CALORIES,
+    proteinTarget: INPUT_TARGETS.PROTEIN_G,
+    caloriesConsumed: 0,
+    proteinConsumed: 0,
+    trainingDone: false,
+    trainingNotes: "",
+    sleepHours: 0,
+    stepCount: 0,
+    walkAfterLunch: false,
+    walkAfterDinner: false,
+    zone2Done: false,
+    waterIntake: "",
+    notes: "",
+    fiberConsumed: 0,
+    fruitsConsumed: 0,
+  };
+}
+
+function basePayload(
+  existing: InputRecord | null,
+  date: string
+): SaveInputsPayload {
+  return existing
+    ? recordToSavePayload(existing, date)
+    : emptySavePayload(date);
 }
 
 export function InputForm({
   date,
   existing,
   onSave,
-  busy,
 }: {
   date: string;
   existing: InputRecord | null;
   onSave: (p: SaveInputsPayload) => Promise<void>;
-  busy: boolean;
 }) {
   const [form, setForm] = useState<InputFormState>(() =>
     existing ? recordToForm(existing) : emptyForm()
   );
-  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<{
+    key: string;
+    msg: string;
+  } | null>(null);
 
   useEffect(() => {
     setForm(existing ? recordToForm(existing) : emptyForm());
-    setError(null);
+    setRowError(null);
   }, [existing, date]);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    const caloriesConsumed = parseQty(form.caloriesConsumed);
-    const proteinConsumed = parseQty(form.proteinConsumed);
-    const sleepHours = parseQty(form.sleepHours);
-    const stepCount = parseQty(form.stepCount);
-    const fiberConsumed = parseQty(form.fiberConsumed);
-    const fruitsConsumed = parseQty(form.fruitsConsumed);
+  const runSave = useCallback(
+    async (key: string, payload: SaveInputsPayload) => {
+      setSaving(key);
+      setRowError(null);
+      try {
+        await onSave(payload);
+      } finally {
+        setSaving(null);
+      }
+    },
+    [onSave]
+  );
 
-    if (caloriesConsumed === null || proteinConsumed === null) {
-      setError(
-        "Calories and protein must be valid non-negative numbers (or leave blank for 0)."
-      );
-      return;
-    }
-    if (sleepHours === null) {
-      setError(
-        "Sleep hours must be a valid non-negative number (or leave blank for 0)."
-      );
-      return;
-    }
-    if (stepCount === null) {
-      setError(
-        "Step count must be a valid non-negative number (or leave blank for 0)."
-      );
-      return;
-    }
-    if (fiberConsumed === null || fruitsConsumed === null) {
-      setError(
-        "Fibre and fruit must be valid non-negative numbers (or leave blank for 0)."
-      );
-      return;
-    }
+  const labelSave = existing ? "Update" : "Save";
+  const anySaving = saving !== null;
 
-    await onSave({
-      date,
-      id: existing?.id,
-      caloriesTarget: INPUT_TARGETS.CALORIES,
-      proteinTarget: INPUT_TARGETS.PROTEIN_G,
-      caloriesConsumed,
-      proteinConsumed,
-      sleepHours,
-      stepCount,
-      fiberConsumed,
-      fruitsConsumed,
+  async function saveCalories() {
+    const n = parseQty(form.caloriesConsumed);
+    if (n === null) {
+      setRowError({
+        key: "calories",
+        msg: "Enter a valid non-negative number (or leave blank for 0).",
+      });
+      return;
+    }
+    await runSave("calories", {
+      ...basePayload(existing, date),
+      caloriesConsumed: n,
+    });
+  }
+
+  async function saveProtein() {
+    const n = parseQty(form.proteinConsumed);
+    if (n === null) {
+      setRowError({
+        key: "protein",
+        msg: "Enter a valid non-negative number (or leave blank for 0).",
+      });
+      return;
+    }
+    await runSave("protein", {
+      ...basePayload(existing, date),
+      proteinConsumed: n,
+    });
+  }
+
+  async function saveSleep() {
+    const n = parseQty(form.sleepHours);
+    if (n === null) {
+      setRowError({
+        key: "sleep",
+        msg: "Enter a valid non-negative number (or leave blank for 0).",
+      });
+      return;
+    }
+    await runSave("sleep", {
+      ...basePayload(existing, date),
+      sleepHours: n,
+    });
+  }
+
+  async function saveSteps() {
+    const n = parseQty(form.stepCount);
+    if (n === null) {
+      setRowError({
+        key: "steps",
+        msg: "Enter a valid non-negative number (or leave blank for 0).",
+      });
+      return;
+    }
+    await runSave("steps", {
+      ...basePayload(existing, date),
+      stepCount: n,
+    });
+  }
+
+  async function saveFiber() {
+    const n = parseQty(form.fiberConsumed);
+    if (n === null) {
+      setRowError({
+        key: "fiber",
+        msg: "Enter a valid non-negative number (or leave blank for 0).",
+      });
+      return;
+    }
+    await runSave("fiber", {
+      ...basePayload(existing, date),
+      fiberConsumed: n,
+    });
+  }
+
+  async function saveFruits() {
+    const n = parseQty(form.fruitsConsumed);
+    if (n === null) {
+      setRowError({
+        key: "fruits",
+        msg: "Enter a valid non-negative number (or leave blank for 0).",
+      });
+      return;
+    }
+    await runSave("fruits", {
+      ...basePayload(existing, date),
+      fruitsConsumed: n,
+    });
+  }
+
+  async function saveWater() {
+    await runSave("water", {
+      ...basePayload(existing, date),
       waterIntake: form.waterIntake,
-      trainingDone: form.trainingDone,
+    });
+  }
+
+  async function saveTrainingNotes() {
+    await runSave("trainingNotes", {
+      ...basePayload(existing, date),
       trainingNotes: form.trainingNotes,
-      walkAfterLunch: form.walkAfterLunch,
-      walkAfterDinner: form.walkAfterDinner,
-      zone2Done: form.zone2Done,
+    });
+  }
+
+  async function saveNotes() {
+    await runSave("notes", {
+      ...basePayload(existing, date),
       notes: form.notes,
     });
   }
 
-  const calN = previewNum(form.caloriesConsumed);
-  const proN = previewNum(form.proteinConsumed);
-  const sleepN = previewNum(form.sleepHours);
-  const stepsN = previewNum(form.stepCount);
-  const fiberN = previewNum(form.fiberConsumed);
-  const fruitsN = previewNum(form.fruitsConsumed);
+  async function saveTrainingDone() {
+    await runSave("trainingDone", {
+      ...basePayload(existing, date),
+      trainingDone: form.trainingDone,
+    });
+  }
 
-  const calPct =
-    INPUT_TARGETS.CALORIES > 0 && calN !== null
-      ? Math.min(100, (calN / INPUT_TARGETS.CALORIES) * 100)
-      : 0;
-  const proPct =
-    INPUT_TARGETS.PROTEIN_G > 0 && proN !== null
-      ? Math.min(100, (proN / INPUT_TARGETS.PROTEIN_G) * 100)
-      : 0;
-  const sleepPct =
-    INPUT_TARGETS.SLEEP_HOURS > 0 && sleepN !== null
-      ? Math.min(100, (sleepN / INPUT_TARGETS.SLEEP_HOURS) * 100)
-      : 0;
-  const stepsPct =
-    INPUT_TARGETS.STEPS > 0 && stepsN !== null
-      ? Math.min(100, (stepsN / INPUT_TARGETS.STEPS) * 100)
-      : 0;
-  const fiberPct =
-    INPUT_TARGETS.FIBER_G > 0 && fiberN !== null
-      ? Math.min(100, (fiberN / INPUT_TARGETS.FIBER_G) * 100)
-      : 0;
-  const fruitsPct =
-    INPUT_TARGETS.FRUITS_G > 0 && fruitsN !== null
-      ? Math.min(100, (fruitsN / INPUT_TARGETS.FRUITS_G) * 100)
-      : 0;
+  async function saveWalkLunch() {
+    await runSave("walkLunch", {
+      ...basePayload(existing, date),
+      walkAfterLunch: form.walkAfterLunch,
+    });
+  }
+
+  async function saveWalkDinner() {
+    await runSave("walkDinner", {
+      ...basePayload(existing, date),
+      walkAfterDinner: form.walkAfterDinner,
+    });
+  }
+
+  async function saveZone2() {
+    await runSave("zone2", {
+      ...basePayload(existing, date),
+      zone2Done: form.zone2Done,
+    });
+  }
+
+  function errFor(key: string) {
+    return rowError?.key === key ? rowError.msg : null;
+  }
 
   return (
-    <form
-      onSubmit={submit}
-      className="rounded-xl border border-zinc-200/80 bg-white p-4 shadow-sm"
-    >
+    <div className="rounded-xl border border-zinc-200/80 bg-white p-4 shadow-sm">
       <h3 className="text-sm font-semibold text-zinc-900">Log actuals</h3>
-      {error && (
-        <p className="mt-2 text-sm text-red-600" role="alert">
-          {error}
-        </p>
-      )}
+      <p className="mt-1 text-xs text-zinc-500">
+        Each field has its own button. Saved values sync with the rest of the
+        app for this day.
+      </p>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div>
-          <p className="text-xs font-medium uppercase text-zinc-500">
-            Calories progress (vs target)
-          </p>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-100">
-            <div
-              className="h-full rounded-full bg-zinc-900 transition-[width]"
-              style={{ width: `${calPct}%` }}
-            />
-          </div>
-        </div>
-        <div>
-          <p className="text-xs font-medium uppercase text-zinc-500">
-            Protein progress (vs target)
-          </p>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-100">
-            <div
-              className="h-full rounded-full bg-emerald-600 transition-[width]"
-              style={{ width: `${proPct}%` }}
-            />
-          </div>
-        </div>
-        <div>
-          <p className="text-xs font-medium uppercase text-zinc-500">
-            Fibre progress (vs {INPUT_TARGETS.FIBER_G} g)
-          </p>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-100">
-            <div
-              className="h-full rounded-full bg-amber-600 transition-[width]"
-              style={{ width: `${fiberPct}%` }}
-            />
-          </div>
-        </div>
-        <div>
-          <p className="text-xs font-medium uppercase text-zinc-500">
-            Fruit progress (vs {INPUT_TARGETS.FRUITS_G} g)
-          </p>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-100">
-            <div
-              className="h-full rounded-full bg-lime-600 transition-[width]"
-              style={{ width: `${fruitsPct}%` }}
-            />
-          </div>
-        </div>
-        <div>
-          <p className="text-xs font-medium uppercase text-zinc-500">
-            Sleep progress (vs target)
-          </p>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-100">
-            <div
-              className="h-full rounded-full bg-sky-600 transition-[width]"
-              style={{ width: `${sleepPct}%` }}
-            />
-          </div>
-        </div>
-        <div>
-          <p className="text-xs font-medium uppercase text-zinc-500">
-            Steps progress (vs {formatTargetInt(INPUT_TARGETS.STEPS)} target)
-          </p>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-100">
-            <div
-              className="h-full rounded-full bg-violet-600 transition-[width]"
-              style={{ width: `${stepsPct}%` }}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <Field
+      <div className="mt-6 space-y-5">
+        <FieldRow
           label="Calories consumed"
           inputMode="numeric"
           value={form.caloriesConsumed}
           onChange={(s) => setForm((f) => ({ ...f, caloriesConsumed: s }))}
-          disabled={busy}
+          onSubmit={saveCalories}
+          disabled={anySaving}
+          saving={saving === "calories"}
+          buttonLabel={labelSave}
+          error={errFor("calories")}
         />
-        <Field
+        <FieldRow
           label="Protein consumed (g)"
           inputMode="numeric"
           value={form.proteinConsumed}
           onChange={(s) => setForm((f) => ({ ...f, proteinConsumed: s }))}
-          disabled={busy}
+          onSubmit={saveProtein}
+          disabled={anySaving}
+          saving={saving === "protein"}
+          buttonLabel={labelSave}
+          error={errFor("protein")}
         />
-        <Field
+        <FieldRow
           label="Sleep hours (actual)"
           inputMode="decimal"
           value={form.sleepHours}
           onChange={(s) => setForm((f) => ({ ...f, sleepHours: s }))}
-          disabled={busy}
+          onSubmit={saveSleep}
+          disabled={anySaving}
+          saving={saving === "sleep"}
+          buttonLabel={labelSave}
+          error={errFor("sleep")}
         />
-        <Field
+        <FieldRow
           label={`Step count (target ${formatTargetInt(INPUT_TARGETS.STEPS)})`}
           inputMode="numeric"
           value={form.stepCount}
           onChange={(s) => setForm((f) => ({ ...f, stepCount: s }))}
-          disabled={busy}
+          onSubmit={saveSteps}
+          disabled={anySaving}
+          saving={saving === "steps"}
+          buttonLabel={labelSave}
+          error={errFor("steps")}
         />
-        <Field
+        <FieldRow
           label={`Fibre consumed (g, target ${INPUT_TARGETS.FIBER_G})`}
           inputMode="numeric"
           value={form.fiberConsumed}
           onChange={(s) => setForm((f) => ({ ...f, fiberConsumed: s }))}
-          disabled={busy}
+          onSubmit={saveFiber}
+          disabled={anySaving}
+          saving={saving === "fiber"}
+          buttonLabel={labelSave}
+          error={errFor("fiber")}
         />
-        <Field
+        <FieldRow
           label={`Fruit consumed (g, target ${INPUT_TARGETS.FRUITS_G})`}
           inputMode="numeric"
           value={form.fruitsConsumed}
           onChange={(s) => setForm((f) => ({ ...f, fruitsConsumed: s }))}
-          disabled={busy}
+          onSubmit={saveFruits}
+          disabled={anySaving}
+          saving={saving === "fruits"}
+          buttonLabel={labelSave}
+          error={errFor("fruits")}
         />
-        <label className="block text-xs font-medium text-zinc-600 sm:col-span-2">
-          Water intake (actual)
-          <input
-            className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-            value={form.waterIntake}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, waterIntake: e.target.value }))
-            }
-            placeholder="e.g. 3.5 L"
-            disabled={busy}
-          />
-        </label>
-        <label className="block text-xs font-medium text-zinc-600 sm:col-span-2">
-          Training notes
-          <input
-            className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-            value={form.trainingNotes}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, trainingNotes: e.target.value }))
-            }
-            disabled={busy}
-          />
-        </label>
-        <label className="block text-xs font-medium text-zinc-600 sm:col-span-2">
-          Notes
-          <textarea
-            rows={2}
-            className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-            value={form.notes}
-            onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-            disabled={busy}
-          />
-        </label>
-      </div>
 
-      <div className="mt-4 flex flex-wrap gap-4 border-t border-zinc-100 pt-4">
-        <Toggle
-          label="Training done"
-          checked={form.trainingDone}
-          onChange={(v) => setForm((f) => ({ ...f, trainingDone: v }))}
-          disabled={busy}
-        />
-        <Toggle
-          label="Walk after lunch"
-          checked={form.walkAfterLunch}
-          onChange={(v) => setForm((f) => ({ ...f, walkAfterLunch: v }))}
-          disabled={busy}
-        />
-        <Toggle
-          label="Walk after dinner"
-          checked={form.walkAfterDinner}
-          onChange={(v) => setForm((f) => ({ ...f, walkAfterDinner: v }))}
-          disabled={busy}
-        />
-        <Toggle
-          label="Zone 2 done"
-          checked={form.zone2Done}
-          onChange={(v) => setForm((f) => ({ ...f, zone2Done: v }))}
-          disabled={busy}
-        />
-      </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3">
+          <label className="block min-w-0 flex-1 text-xs font-medium text-zinc-600">
+            Water intake (actual)
+            <input
+              className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+              value={form.waterIntake}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, waterIntake: e.target.value }))
+              }
+              placeholder="e.g. 3.5 L"
+              disabled={anySaving}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => void saveWater()}
+            disabled={anySaving}
+            className="shrink-0 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 sm:mb-0.5"
+          >
+            {saving === "water" ? "…" : labelSave}
+          </button>
+        </div>
 
-      <div className="mt-6 flex justify-end">
-        <button
-          type="submit"
-          disabled={busy}
-          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
-        >
-          {busy ? "Saving…" : existing ? "Update day" : "Save day"}
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3">
+          <label className="block min-w-0 flex-1 text-xs font-medium text-zinc-600">
+            Training notes
+            <input
+              className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+              value={form.trainingNotes}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, trainingNotes: e.target.value }))
+              }
+              disabled={anySaving}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => void saveTrainingNotes()}
+            disabled={anySaving}
+            className="shrink-0 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 sm:mb-0.5"
+          >
+            {saving === "trainingNotes" ? "…" : labelSave}
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3">
+          <label className="block min-w-0 flex-1 text-xs font-medium text-zinc-600">
+            Notes
+            <textarea
+              rows={2}
+              className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+              value={form.notes}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, notes: e.target.value }))
+              }
+              disabled={anySaving}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => void saveNotes()}
+            disabled={anySaving}
+            className="shrink-0 self-start rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 sm:self-end sm:mb-0.5"
+          >
+            {saving === "notes" ? "…" : labelSave}
+          </button>
+        </div>
+
+        <div className="border-t border-zinc-100 pt-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Habits
+          </p>
+          <div className="mt-3 space-y-3">
+            <ToggleRow
+              label="Training done"
+              checked={form.trainingDone}
+              onChange={(v) => setForm((f) => ({ ...f, trainingDone: v }))}
+              onSubmit={saveTrainingDone}
+              disabled={anySaving}
+              saving={saving === "trainingDone"}
+              buttonLabel={labelSave}
+            />
+            <ToggleRow
+              label="Walk after lunch"
+              checked={form.walkAfterLunch}
+              onChange={(v) => setForm((f) => ({ ...f, walkAfterLunch: v }))}
+              onSubmit={saveWalkLunch}
+              disabled={anySaving}
+              saving={saving === "walkLunch"}
+              buttonLabel={labelSave}
+            />
+            <ToggleRow
+              label="Walk after dinner"
+              checked={form.walkAfterDinner}
+              onChange={(v) => setForm((f) => ({ ...f, walkAfterDinner: v }))}
+              onSubmit={saveWalkDinner}
+              disabled={anySaving}
+              saving={saving === "walkDinner"}
+              buttonLabel={labelSave}
+            />
+            <ToggleRow
+              label="Cardio done"
+              checked={form.zone2Done}
+              onChange={(v) => setForm((f) => ({ ...f, zone2Done: v }))}
+              onSubmit={saveZone2}
+              disabled={anySaving}
+              saving={saving === "zone2"}
+              buttonLabel={labelSave}
+            />
+          </div>
+        </div>
       </div>
-    </form>
+    </div>
   );
 }
 
-/** Empty or whitespace → 0; invalid → null */
+function FieldRow({
+  label,
+  value,
+  onChange,
+  onSubmit,
+  disabled,
+  saving,
+  buttonLabel,
+  error,
+  inputMode = "numeric",
+}: {
+  label: string;
+  value: string;
+  onChange: (s: string) => void;
+  onSubmit: () => void | Promise<void>;
+  disabled?: boolean;
+  saving: boolean;
+  buttonLabel: string;
+  error: string | null;
+  inputMode?: "numeric" | "decimal";
+}) {
+  return (
+    <div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3">
+        <label className="block min-w-0 flex-1 text-xs font-medium text-zinc-600">
+          {label}
+          <input
+            type="text"
+            inputMode={inputMode}
+            autoComplete="off"
+            className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            disabled={disabled}
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => void onSubmit()}
+          disabled={disabled}
+          className="shrink-0 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 sm:mb-0.5"
+        >
+          {saving ? "…" : buttonLabel}
+        </button>
+      </div>
+      {error && (
+        <p className="mt-1 text-sm text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ToggleRow({
+  label,
+  checked,
+  onChange,
+  onSubmit,
+  disabled,
+  saving,
+  buttonLabel,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  onSubmit: () => void | Promise<void>;
+  disabled?: boolean;
+  saving: boolean;
+  buttonLabel: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
+      <label className="flex min-w-0 cursor-pointer items-center gap-2 text-sm text-zinc-800">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          disabled={disabled}
+          className="rounded border-zinc-300"
+        />
+        {label}
+      </label>
+      <button
+        type="button"
+        onClick={() => void onSubmit()}
+        disabled={disabled}
+        className="shrink-0 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+      >
+        {saving ? "…" : buttonLabel}
+      </button>
+    </div>
+  );
+}
+
 function parseQty(raw: string): number | null {
   const t = raw.trim();
   if (t === "") return 0;
   const n = Number(t);
   if (!Number.isFinite(n) || n < 0) return null;
   return n;
-}
-
-/** For progress bars while typing */
-function previewNum(raw: string): number | null {
-  const t = raw.trim();
-  if (t === "") return null;
-  const n = Number(t);
-  return Number.isFinite(n) && n >= 0 ? n : null;
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  disabled,
-  inputMode = "numeric",
-}: {
-  label: string;
-  value: string;
-  onChange: (s: string) => void;
-  disabled?: boolean;
-  inputMode?: "numeric" | "decimal";
-}) {
-  return (
-    <label className="block text-xs font-medium text-zinc-600">
-      {label}
-      <input
-        type="text"
-        inputMode={inputMode}
-        autoComplete="off"
-        className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-      />
-    </label>
-  );
-}
-
-function Toggle({
-  label,
-  checked,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-800">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        disabled={disabled}
-        className="rounded border-zinc-300"
-      />
-      {label}
-    </label>
-  );
 }

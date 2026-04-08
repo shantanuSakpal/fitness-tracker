@@ -4,7 +4,6 @@ import { DateSelectorBar } from "@/components/common/DateSelector";
 import { Loader } from "@/components/common/Loader";
 import { InputForm } from "@/components/inputs/InputForm";
 import { InputSummary } from "@/components/inputs/InputSummary";
-import { InputTargetsPanel } from "@/components/inputs/InputTargetsPanel";
 import { fetchInputsByDate, GasApiError, saveInputs } from "@/lib/api";
 import type { InputRecord, SaveInputsPayload } from "@/lib/types";
 import { formatDisplayDate, todayISODate } from "@/lib/utils";
@@ -39,15 +38,12 @@ export function InputsClient() {
   }, [load]);
 
   async function onSave(payload: SaveInputsPayload) {
-    setBusy(true);
     try {
       const saved = await saveInputs(payload);
       setRecord(saved);
       toast.success("Inputs saved");
     } catch (e) {
       toast.error(e instanceof GasApiError ? e.message : "Save failed");
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -65,8 +61,6 @@ export function InputsClient() {
         <DateSelectorBar className="max-w-md" />
       </header>
 
-      {/* <InputTargetsPanel /> */}
-
       <section>
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
           Summary
@@ -77,7 +71,7 @@ export function InputsClient() {
       {loading ? (
         <Loader />
       ) : (
-        <InputForm date={date} existing={record} onSave={onSave} busy={busy} />
+        <InputForm date={date} existing={record} onSave={onSave} />
       )}
     </div>
   );

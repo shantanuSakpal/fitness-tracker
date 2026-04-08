@@ -10,7 +10,7 @@ A personal fitness companion that helps you see **one day at a time**: what you 
 Add meals and snacks with calories, protein, fat, and fibre. You can note weight or portions, mark items as fruit when you want them to count toward your fruit goal, and attach quick notes. Everything is organized by date so you can look back at any day.
 
 **Track your daily inputs**  
-Set targets and record progress for the habits that matter to you: calories and protein, training, sleep, steps, easy walks, Zone 2 cardio, water, fibre, and fruit. It’s built to mirror how you actually plan a day—not just numbers, but did you train, rest, and move?
+Set targets and record progress for the habits that matter to you: calories and protein, training, sleep, steps, easy walks, cardio, water, fibre, and fruit. It’s built to mirror how you actually plan a day—not just numbers, but did you train, rest, and move?
 
 **Record how you’re doing on the outside**  
 On the outputs side, log measurements (weight, waist, and more), how your energy and mood felt, recovery, and space for a progress photo link. Over time you get a clearer picture of trends, not just a single snapshot.
