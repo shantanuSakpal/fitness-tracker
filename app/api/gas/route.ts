@@ -35,6 +35,58 @@ export async function POST(req: Request) {
           ok: true,
           data: await queries.listAllFood(),
         });
+      case "getUniqueFoods":
+        return NextResponse.json({
+          ok: true,
+          data: await queries.listUniqueFoods(),
+        });
+      case "syncUniqueFoods":
+        return NextResponse.json({
+          ok: true,
+          data: await queries.syncUniqueFoodsFromFoods(),
+        });
+      case "addUniqueFood":
+        return NextResponse.json({
+          ok: true,
+          data: await queries.createUniqueFood({
+            foodName: String(body.foodName ?? ""),
+            caloriesPer100g: Number(body.caloriesPer100g) || 0,
+            proteinPer100g: Number(body.proteinPer100g) || 0,
+            fatPer100g: Number(body.fatPer100g) || 0,
+            fiberPer100g: Number(body.fiberPer100g) || 0,
+            isFruit: Boolean(body.isFruit),
+          }),
+        });
+      case "updateUniqueFood":
+        return NextResponse.json({
+          ok: true,
+          data: await queries.updateUniqueFood({
+            id: String(body.id),
+            ...(body.foodName !== undefined
+              ? { foodName: String(body.foodName) }
+              : {}),
+            ...(body.caloriesPer100g !== undefined
+              ? { caloriesPer100g: Number(body.caloriesPer100g) }
+              : {}),
+            ...(body.proteinPer100g !== undefined
+              ? { proteinPer100g: Number(body.proteinPer100g) }
+              : {}),
+            ...(body.fatPer100g !== undefined
+              ? { fatPer100g: Number(body.fatPer100g) }
+              : {}),
+            ...(body.fiberPer100g !== undefined
+              ? { fiberPer100g: Number(body.fiberPer100g) }
+              : {}),
+            ...(body.isFruit !== undefined
+              ? { isFruit: Boolean(body.isFruit) }
+              : {}),
+          }),
+        });
+      case "deleteUniqueFood":
+        return NextResponse.json({
+          ok: true,
+          data: await queries.deleteUniqueFood(String(body.id)),
+        });
       case "getFoodByDate":
         return NextResponse.json({
           ok: true,

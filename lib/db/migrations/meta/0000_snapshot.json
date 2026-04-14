@@ -1,5 +1,5 @@
 {
-  "id": "bce91476-5e3e-45b6-b1d1-b12fded4c4b0",
+  "id": "74aedfe2-4790-4052-8b8d-d0f0c24d42a7",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -27,12 +27,19 @@
           "primaryKey": false,
           "notNull": true
         },
-        "weight_or_count": {
-          "name": "weight_or_count",
-          "type": "text",
+        "weight_grams": {
+          "name": "weight_grams",
+          "type": "real",
           "primaryKey": false,
           "notNull": true,
-          "default": "''"
+          "default": 0
+        },
+        "unit_count": {
+          "name": "unit_count",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "calories": {
           "name": "calories",
@@ -57,6 +64,20 @@
         },
         "fiber": {
           "name": "fiber",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "is_fruit": {
+          "name": "is_fruit",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "fruit_grams": {
+          "name": "fruit_grams",
           "type": "real",
           "primaryKey": false,
           "notNull": true,
@@ -350,6 +371,93 @@
           "nullsNotDistinct": false,
           "columns": [
             "date"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.unique_foods": {
+      "name": "unique_foods",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name_key": {
+          "name": "name_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "food_name": {
+          "name": "food_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "calories_per_100g": {
+          "name": "calories_per_100g",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "protein_per_100g": {
+          "name": "protein_per_100g",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "fat_per_100g": {
+          "name": "fat_per_100g",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "fiber_per_100g": {
+          "name": "fiber_per_100g",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "is_fruit": {
+          "name": "is_fruit",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "unique_foods_name_key_unique": {
+          "name": "unique_foods_name_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "name_key"
           ]
         }
       },

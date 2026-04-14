@@ -1,53 +1,61 @@
 "use client";
 
+import Link from "next/link";
 import { DateSelectorBar } from "@/components/common/DateSelector";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Loader } from "@/components/common/Loader";
-import { SummaryCard } from "@/components/common/SummaryCard";
 import { InputProgressBars } from "@/components/dashboard/InputProgressBars";
-import { fetchDashboardSummary, fetchTrendData, GasApiError } from "@/lib/api";
-import type { DashboardSummary, TrendPoint } from "@/lib/types";
-import { INPUT_TARGETS, formatTargetInt } from "@/lib/inputTargets";
+import { FoodForm } from "@/components/food/FoodForm";
+import { FoodTable } from "@/components/food/FoodTable";
+import {
+  createFood,
+  fetchAllFood,
+  fetchDashboardSummary,
+  fetchUniqueFoods,
+  GasApiError,
+  removeFood,
+  syncUniqueFoodsCatalog,
+  updateFood,
+} from "@/lib/api";
+import type { DashboardSummary, FoodEntry, UniqueFoodEntry } from "@/lib/types";
 import { formatDisplayDate, todayISODate } from "@/lib/utils";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 export function DashboardClient() {
   const params = useSearchParams();
-  const date = params.get("date") || todayISODate();
+  const date = params.get("date")?.slice(0, 10) || todayISODate();
 
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [trends, setTrends] = useState<TrendPoint[]>([]);
+  const [rows, setRows] = useState<FoodEntry[]>([]);
+  const [uniqueFoods, setUniqueFoods] = useState<UniqueFoodEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<FoodEntry | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [syncCatalogBusy, setSyncCatalogBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [s, t] = await Promise.all([
+      const [s, data, catalog] = await Promise.all([
         fetchDashboardSummary(date),
-        fetchTrendData(60),
+        fetchAllFood(),
+        fetchUniqueFoods(),
       ]);
       setSummary(s);
-      setTrends(t);
+      setRows(data);
+      setUniqueFoods(catalog);
     } catch (e) {
       const msg =
         e instanceof GasApiError
           ? e.message
           : e instanceof Error
-          ? e.message
-          : "Failed to load dashboard";
+            ? e.message
+            : "Failed to load dashboard";
       setError(msg);
       setSummary(null);
       toast.error(msg);
@@ -58,9 +66,105 @@ export function DashboardClient() {
 
   useEffect(() => {
     load();
+    setEditing(null);
   }, [load]);
 
-  const chartSlice = trends.filter((x) => x.date <= date).slice(-30);
+  const displayRows = useMemo(
+    () => rows.filter((r) => r.date === date),
+    [rows, date]
+  );
+
+  async function onSyncCatalog() {
+    setSyncCatalogBusy(true);
+    try {
+      const { upserted } = await syncUniqueFoodsCatalog();
+      toast.success(
+        upserted === 0
+          ? "No new catalog rows — add foods with weight in your log, then sync again."
+          : `Saved foods catalog updated (${upserted} item${upserted === 1 ? "" : "s"}).`
+      );
+      await load();
+    } catch (e) {
+      toast.error(e instanceof GasApiError ? e.message : "Sync failed");
+    } finally {
+      setSyncCatalogBusy(false);
+    }
+  }
+
+  async function onSubmitFood(payload: {
+    date: string;
+    foodName: string;
+    weightGrams: number;
+    unitCount: number;
+    calories: number;
+    protein: number;
+    fat: number;
+    fiber: number;
+    isFruit: boolean;
+    notes: string;
+    id?: string;
+  }) {
+    setBusy(true);
+    try {
+      if (payload.id) {
+        await updateFood({
+          id: payload.id,
+          date: payload.date,
+          foodName: payload.foodName,
+          weightGrams: payload.weightGrams,
+          unitCount: payload.unitCount,
+          calories: payload.calories,
+          protein: payload.protein,
+          fat: payload.fat,
+          fiber: payload.fiber,
+          isFruit: payload.isFruit,
+          notes: payload.notes,
+        });
+        toast.success("Food updated — daily inputs synced for that date");
+      } else {
+        await createFood({
+          date: payload.date,
+          foodName: payload.foodName,
+          weightGrams: payload.weightGrams,
+          unitCount: payload.unitCount,
+          calories: payload.calories,
+          protein: payload.protein,
+          fat: payload.fat,
+          fiber: payload.fiber,
+          isFruit: payload.isFruit,
+          notes: payload.notes,
+        });
+        toast.success(
+          "Food logged — inputs updated (calories, protein, fibre, fruit)"
+        );
+      }
+      setEditing(null);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof GasApiError ? e.message : "Save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onDeleteFood(id: string) {
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm("Delete this food entry?")
+    )
+      return;
+    setBusyId(id);
+    try {
+      await removeFood(id);
+      toast.success("Deleted — inputs recalculated for that date");
+      if (editing?.id === id) setEditing(null);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof GasApiError ? e.message : "Delete failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
@@ -70,7 +174,7 @@ export function DashboardClient() {
             Dashboard
           </h1>
           <p className="mt-1 text-sm text-zinc-600">
-            Overview for {formatDisplayDate(date)}
+            Overview and food log for {formatDisplayDate(date)}
           </p>
         </div>
         <DateSelectorBar className="max-w-md" />
@@ -94,226 +198,42 @@ export function DashboardClient() {
       )}
       {!loading && !error && summary && (
         <>
-          <section>
-            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Day at a glance
-            </h2>
-            {/* <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <SummaryCard
-                title="Protein (g)"
-                value={
-                  summary.proteinConsumed != null
-                    ? `${summary.proteinConsumed} / ${INPUT_TARGETS.PROTEIN_G}`
-                    : "—"
-                }
-                hint="Consumed vs target"
-                variant={
-                  summary.proteinConsumed != null &&
-                  summary.proteinConsumed >= INPUT_TARGETS.PROTEIN_G
-                    ? "success"
-                    : summary.proteinConsumed != null
-                    ? "warning"
-                    : "muted"
-                }
-              />
-              <SummaryCard
-                title="Calories"
-                value={
-                  summary.caloriesConsumed != null
-                    ? `${summary.caloriesConsumed} / ${INPUT_TARGETS.CALORIES}`
-                    : "—"
-                }
-                hint="Consumed vs target"
-                variant={
-                  summary.caloriesConsumed != null &&
-                  summary.caloriesConsumed >= INPUT_TARGETS.CALORIES
-                    ? "success"
-                    : summary.caloriesConsumed != null
-                    ? "warning"
-                    : "muted"
-                }
-              />
-              <SummaryCard
-                title="Training"
-                value={
-                  summary.trainingDone === null
-                    ? "—"
-                    : summary.trainingDone
-                    ? "Done"
-                    : "Not logged"
-                }
-                variant={
-                  summary.trainingDone === true
-                    ? "success"
-                    : summary.trainingDone === false
-                    ? "muted"
-                    : "default"
-                }
-              />
-              <SummaryCard
-                title="Sleep"
-                value={
-                  summary.sleepHours != null ? `${summary.sleepHours} h` : "—"
-                }
-                hint={`Target ${INPUT_TARGETS.SLEEP_HOURS} h`}
-                variant={
-                  summary.sleepHours == null
-                    ? "muted"
-                    : summary.sleepHours >= INPUT_TARGETS.SLEEP_HOURS
-                    ? "success"
-                    : "warning"
-                }
-              />
-              <SummaryCard
-                title="Steps"
-                value={
-                  summary.stepCount != null
-                    ? `${formatTargetInt(
-                        summary.stepCount
-                      )} / ${formatTargetInt(INPUT_TARGETS.STEPS)}`
-                    : "—"
-                }
-                hint="Actual vs target"
-                variant={
-                  summary.stepCount == null
-                    ? "muted"
-                    : summary.stepCount >= INPUT_TARGETS.STEPS
-                    ? "success"
-                    : "warning"
-                }
-              />
-              <SummaryCard
-                title="Fibre (g)"
-                value={
-                  summary.fiberConsumed != null
-                    ? `${summary.fiberConsumed} / ${INPUT_TARGETS.FIBER_G}`
-                    : "—"
-                }
-                hint="Consumed vs target"
-                variant={
-                  summary.fiberConsumed == null
-                    ? "muted"
-                    : summary.fiberConsumed >= INPUT_TARGETS.FIBER_G
-                    ? "success"
-                    : "warning"
-                }
-              />
-              <SummaryCard
-                title="Fruit (g)"
-                value={
-                  summary.fruitsConsumed != null
-                    ? `${summary.fruitsConsumed} / ${INPUT_TARGETS.FRUITS_G}`
-                    : "—"
-                }
-                hint="Consumed vs target"
-                variant={
-                  summary.fruitsConsumed == null
-                    ? "muted"
-                    : summary.fruitsConsumed >= INPUT_TARGETS.FRUITS_G
-                    ? "success"
-                    : "warning"
-                }
-              />
-              <SummaryCard
-                title="Cardio"
-                value={
-                  summary.zone2Done === null
-                    ? "—"
-                    : summary.zone2Done
-                    ? "Done"
-                    : "No"
-                }
-              />
-              <SummaryCard
-                title="Latest body weight"
-                value={
-                  summary.latestBodyWeight != null
-                    ? `${summary.latestBodyWeight}`
-                    : "—"
-                }
-                hint={
-                  summary.latestBodyWeightDate
-                    ? `As of ${summary.latestBodyWeightDate}`
-                    : undefined
-                }
-              />
-            </div> */}
-          </section>
-
           <InputProgressBars summary={summary} />
 
-          {/* <section className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-xl border border-zinc-200/80 bg-white p-4 shadow-sm">
-              <h3 className="text-sm font-semibold text-zinc-900">Notes</h3>
-              <p className="mt-2 text-xs font-medium uppercase text-zinc-500">
-                Inputs
-              </p>
-              <p className="mt-1 text-sm text-zinc-700 whitespace-pre-wrap">
-                {summary.inputNotes || "—"}
-              </p>
-              <p className="mt-4 text-xs font-medium uppercase text-zinc-500">
-                Outputs
-              </p>
-              <p className="mt-1 text-sm text-zinc-700 whitespace-pre-wrap">
-                {summary.outputNotes || "—"}
+          <section className="space-y-4">
+            <div className="flex flex-col gap-1">
+              <h2 className="text-sm font-semibold text-zinc-900">
+                Food for this day
+              </h2>
+              <p className="text-xs text-zinc-500">
+                Totals roll into the progress bars above. Per-100 g presets come from{" "}
+                <Link
+                  href="/diet-book"
+                  className="font-medium text-zinc-800 underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-600"
+                >
+                  Your Diet Book
+                </Link>
+                .
               </p>
             </div>
-            <SummaryCard
-              title="Consistency streak"
-              value={`${summary.streakDays} days`}
-              hint="Training logged yes, counting back from today"
-              variant={summary.streakDays > 0 ? "success" : "muted"}
+            <FoodForm
+              key={editing?.id ?? "food-new"}
+              selectedDate={date}
+              editing={editing}
+              onSubmit={onSubmitFood}
+              onCancelEdit={() => setEditing(null)}
+              busy={busy}
+              uniqueFoods={uniqueFoods}
+              onSyncCatalog={onSyncCatalog}
+              syncCatalogBusy={syncCatalogBusy}
             />
-          </section> */}
-
-          <section>
-            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Recent trends
-            </h2>
-            {chartSlice.length === 0 ? (
-              <EmptyState
-                title="No trend data yet"
-                description="Log weights and inputs to see the last 30 data points."
-              />
-            ) : (
-              <div className="rounded-xl border border-zinc-200/80 bg-white p-4 shadow-sm">
-                <p className="text-xs text-zinc-500">
-                  Body weight & calories (up to 30 points before selected day)
-                </p>
-                <div className="mt-3 h-56 w-full min-w-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartSlice}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
-                      <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                      <YAxis yAxisId="w" width={36} tick={{ fontSize: 10 }} />
-                      <YAxis
-                        yAxisId="c"
-                        orientation="right"
-                        width={36}
-                        tick={{ fontSize: 10 }}
-                      />
-                      <Tooltip />
-                      <Line
-                        yAxisId="w"
-                        type="monotone"
-                        dataKey="bodyWeight"
-                        stroke="#18181b"
-                        dot={false}
-                        name="Weight"
-                      />
-                      <Line
-                        yAxisId="c"
-                        type="monotone"
-                        dataKey="caloriesConsumed"
-                        stroke="#059669"
-                        dot={false}
-                        name="Calories"
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            )}
+            <FoodTable
+              rows={displayRows}
+              showDateColumn={false}
+              onEdit={setEditing}
+              onDelete={onDeleteFood}
+              busyId={busyId}
+            />
           </section>
         </>
       )}

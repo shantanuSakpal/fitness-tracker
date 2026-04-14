@@ -3,6 +3,21 @@
 /** ISO date string YYYY-MM-DD */
 export type ISODate = string;
 
+/** Canonical per-100 g macros for a food name (sync or manual in diet book). */
+export interface UniqueFoodEntry {
+  id: string;
+  /** lower(trim(name)) */
+  nameKey: string;
+  foodName: string;
+  caloriesPer100g: number;
+  proteinPer100g: number;
+  fatPer100g: number;
+  fiberPer100g: number;
+  isFruit: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** Logged food for a calendar day (sums roll into InputTracker for that date). */
 export interface FoodEntry {
   id: string;
@@ -117,6 +132,18 @@ export type CreateFoodPayload = Omit<
 
 export type UpdateFoodPayload = Partial<
   Omit<FoodEntry, "createdAt" | "updatedAt">
+> & { id: string };
+
+export type CreateUniqueFoodPayload = Pick<
+  UniqueFoodEntry,
+  "foodName" | "caloriesPer100g" | "proteinPer100g" | "fatPer100g" | "fiberPer100g" | "isFruit"
+>;
+
+export type UpdateUniqueFoodPayload = Partial<
+  Pick<
+    UniqueFoodEntry,
+    "foodName" | "caloriesPer100g" | "proteinPer100g" | "fatPer100g" | "fiberPer100g" | "isFruit"
+  >
 > & { id: string };
 
 export type SaveInputsPayload = Omit<

@@ -2,11 +2,14 @@ CREATE TABLE "foods" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"log_date" date,
 	"food_name" text NOT NULL,
-	"weight_or_count" text DEFAULT '' NOT NULL,
+	"weight_grams" real DEFAULT 0 NOT NULL,
+	"unit_count" real DEFAULT 0 NOT NULL,
 	"calories" integer DEFAULT 0 NOT NULL,
 	"protein" real DEFAULT 0 NOT NULL,
 	"fat" real DEFAULT 0 NOT NULL,
 	"fiber" real DEFAULT 0 NOT NULL,
+	"is_fruit" boolean DEFAULT false NOT NULL,
+	"fruit_grams" real DEFAULT 0 NOT NULL,
 	"notes" text DEFAULT '' NOT NULL,
 	"created_at" text NOT NULL,
 	"updated_at" text NOT NULL
@@ -51,4 +54,18 @@ CREATE TABLE "outputs" (
 	"created_at" text NOT NULL,
 	"updated_at" text NOT NULL,
 	CONSTRAINT "outputs_date_unique" UNIQUE("date")
+);
+--> statement-breakpoint
+CREATE TABLE "unique_foods" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"name_key" text NOT NULL,
+	"food_name" text NOT NULL,
+	"calories_per_100g" real DEFAULT 0 NOT NULL,
+	"protein_per_100g" real DEFAULT 0 NOT NULL,
+	"fat_per_100g" real DEFAULT 0 NOT NULL,
+	"fiber_per_100g" real DEFAULT 0 NOT NULL,
+	"is_fruit" boolean DEFAULT false NOT NULL,
+	"created_at" text NOT NULL,
+	"updated_at" text NOT NULL,
+	CONSTRAINT "unique_foods_name_key_unique" UNIQUE("name_key")
 );

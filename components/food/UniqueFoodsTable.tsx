@@ -1,19 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { FoodEntry } from "@/lib/types";
+import type { UniqueFoodEntry } from "@/lib/types";
 import { EmptyState } from "@/components/common/EmptyState";
-import { cn, formatDisplayDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
-type FoodSortKey =
+type SortKey =
   | "foodName"
-  | "weightGrams"
-  | "calories"
-  | "protein"
-  | "fat"
-  | "fiber";
+  | "caloriesPer100g"
+  | "proteinPer100g"
+  | "fatPer100g"
+  | "fiberPer100g";
 
-function compareFoodRows(a: FoodEntry, b: FoodEntry, key: FoodSortKey): number {
+function compare(a: UniqueFoodEntry, b: UniqueFoodEntry, key: SortKey): number {
   if (key === "foodName") {
     const cmp = a.foodName.localeCompare(b.foodName, undefined, {
       sensitivity: "base",
@@ -27,6 +26,13 @@ function compareFoodRows(a: FoodEntry, b: FoodEntry, key: FoodSortKey): number {
   return a.id.localeCompare(b.id);
 }
 
+function fmt(n: number, decimals: number) {
+  const v = Number(n) || 0;
+  if (!Number.isFinite(v)) return "0";
+  const f = 10 ** decimals;
+  return String(Math.round(v * f) / f);
+}
+
 function SortableTh({
   label,
   sortKey: columnKey,
@@ -35,23 +41,14 @@ function SortableTh({
   onSort,
 }: {
   label: string;
-  sortKey: FoodSortKey;
-  activeKey: FoodSortKey | null;
+  sortKey: SortKey;
+  activeKey: SortKey | null;
   sortDir: "asc" | "desc";
-  onSort: (k: FoodSortKey) => void;
+  onSort: (k: SortKey) => void;
 }) {
   const active = activeKey === columnKey;
   return (
-    <th
-      className="px-3 py-3"
-      aria-sort={
-        active
-          ? sortDir === "asc"
-            ? "ascending"
-            : "descending"
-          : undefined
-      }
-    >
+    <th className="px-3 py-3" aria-sort={active ? (sortDir === "asc" ? "ascending" : "descending") : undefined}>
       <button
         type="button"
         onClick={() => onSort(columnKey)}
@@ -72,34 +69,27 @@ function SortableTh({
   );
 }
 
-export function FoodTable({
+export function UniqueFoodsTable({
   rows,
-  showDateColumn,
   onEdit,
   onDelete,
   busyId,
-  emptyDescription,
 }: {
-  rows: FoodEntry[];
-  showDateColumn?: boolean;
-  onEdit: (row: FoodEntry) => void;
+  rows: UniqueFoodEntry[];
+  onEdit: (row: UniqueFoodEntry) => void;
   onDelete: (id: string) => void;
   busyId: string | null;
-  /** Override default empty copy (e.g. diet book has no inline form). */
-  emptyDescription?: string;
 }) {
-  const [sortKey, setSortKey] = useState<FoodSortKey | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  const sortedRows = useMemo(() => {
+  const sorted = useMemo(() => {
     if (!sortKey) return rows;
     const dir = sortDir === "asc" ? 1 : -1;
-    return [...rows].sort(
-      (a, b) => compareFoodRows(a, b, sortKey) * dir
-    );
+    return [...rows].sort((a, b) => compare(a, b, sortKey) * dir);
   }, [rows, sortKey, sortDir]);
 
-  function handleSort(key: FoodSortKey) {
+  function handleSort(key: SortKey) {
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
@@ -111,24 +101,22 @@ export function FoodTable({
   if (rows.length === 0) {
     return (
       <EmptyState
-        title="No foods logged"
-        description={
-          emptyDescription ??
-          "Add a meal above, or turn on “Show all dates” if entries are on another day."
-        }
+        title="No saved foods yet"
+        description='Use “Add saved food” above, or sync from logs (weight required), or log meals on the Dashboard and sync.'
       />
     );
   }
 
   return (
     <div className="overflow-hidden rounded-xl border border-zinc-200/80 bg-white shadow-sm">
+      <p className="border-b border-zinc-100 bg-zinc-50/50 px-3 py-2 text-xs text-zinc-500">
+        Macros are per 100 g. The first log on the Dashboard with grams adds a food here;
+        logging does not remove or overwrite diet book rows—use Sync or Edit to update values.
+      </p>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[880px] text-left text-sm">
+        <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="border-b border-zinc-100 bg-zinc-50/80 text-xs font-medium uppercase tracking-wide text-zinc-500">
             <tr>
-              {showDateColumn ? (
-                <th className="px-3 py-3">Date</th>
-              ) : null}
               <SortableTh
                 label="Food"
                 sortKey="foodName"
@@ -137,75 +125,46 @@ export function FoodTable({
                 onSort={handleSort}
               />
               <SortableTh
-                label="Wt (g)"
-                sortKey="weightGrams"
-                activeKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
-              <th className="px-3 py-3">Cnt</th>
-              <SortableTh
-                label="Cal"
-                sortKey="calories"
+                label="Cal /100g"
+                sortKey="caloriesPer100g"
                 activeKey={sortKey}
                 sortDir={sortDir}
                 onSort={handleSort}
               />
               <SortableTh
-                label="P (g)"
-                sortKey="protein"
+                label="P g/100g"
+                sortKey="proteinPer100g"
                 activeKey={sortKey}
                 sortDir={sortDir}
                 onSort={handleSort}
               />
               <SortableTh
-                label="F (g)"
-                sortKey="fat"
+                label="F g/100g"
+                sortKey="fatPer100g"
                 activeKey={sortKey}
                 sortDir={sortDir}
                 onSort={handleSort}
               />
               <SortableTh
-                label="Fib (g)"
-                sortKey="fiber"
+                label="Fib g/100g"
+                sortKey="fiberPer100g"
                 activeKey={sortKey}
                 sortDir={sortDir}
                 onSort={handleSort}
               />
               <th className="px-3 py-3">Fruit</th>
-              <th className="px-3 py-3">Notes</th>
               <th className="px-3 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
-            {sortedRows.map((r) => (
+            {sorted.map((r) => (
               <tr key={r.id} className="text-zinc-800">
-                {showDateColumn ? (
-                  <td className="whitespace-nowrap px-3 py-3 text-zinc-600">
-                    {r.date ? formatDisplayDate(r.date) : "—"}
-                  </td>
-                ) : null}
                 <td className="px-3 py-3 font-medium">{r.foodName}</td>
-                <td className="px-3 py-3 text-zinc-600">
-                  {r.weightGrams > 0 ? r.weightGrams : "—"}
-                </td>
-                <td className="px-3 py-3 text-zinc-600">
-                  {r.unitCount > 0 ? r.unitCount : "—"}
-                </td>
-                <td className="px-3 py-3">{r.calories}</td>
-                <td className="px-3 py-3">{r.protein ?? 0}</td>
-                <td className="px-3 py-3">{r.fat ?? 0}</td>
-                <td className="px-3 py-3">{r.fiber ?? 0}</td>
-                <td className="whitespace-nowrap px-3 py-3 text-zinc-600">
-                  {r.isFruit && r.fruitGrams > 0
-                    ? `${r.fruitGrams} g`
-                    : r.isFruit
-                      ? "0 g"
-                      : "—"}
-                </td>
-                <td className="max-w-[160px] truncate px-3 py-3 text-zinc-600">
-                  {r.notes || "—"}
-                </td>
+                <td className="px-3 py-3">{fmt(r.caloriesPer100g, 0)}</td>
+                <td className="px-3 py-3">{fmt(r.proteinPer100g, 2)}</td>
+                <td className="px-3 py-3">{fmt(r.fatPer100g, 2)}</td>
+                <td className="px-3 py-3">{fmt(r.fiberPer100g, 2)}</td>
+                <td className="px-3 py-3 text-zinc-600">{r.isFruit ? "Yes" : "—"}</td>
                 <td className="px-3 py-3 text-right">
                   <button
                     type="button"

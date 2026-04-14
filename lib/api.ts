@@ -5,6 +5,7 @@
 import type {
   ApiResponse,
   CreateFoodPayload,
+  CreateUniqueFoodPayload,
   DashboardSummary,
   FoodEntry,
   InputRecord,
@@ -12,7 +13,9 @@ import type {
   SaveInputsPayload,
   SaveOutputsPayload,
   TrendPoint,
+  UniqueFoodEntry,
   UpdateFoodPayload,
+  UpdateUniqueFoodPayload,
 } from "./types";
 
 const PROXY_PATH = "/api/gas";
@@ -124,6 +127,61 @@ function normalizeFoodEntry(e: FoodEntry): FoodEntry {
     createdAt: e.createdAt ?? "",
     updatedAt: e.updatedAt ?? "",
   };
+}
+
+function normalizeUniqueFoodEntry(e: UniqueFoodEntry): UniqueFoodEntry {
+  return {
+    id: e.id,
+    nameKey: e.nameKey,
+    foodName: e.foodName,
+    caloriesPer100g: Number(e.caloriesPer100g) || 0,
+    proteinPer100g: Number(e.proteinPer100g) || 0,
+    fatPer100g: Number(e.fatPer100g) || 0,
+    fiberPer100g: Number(e.fiberPer100g) || 0,
+    isFruit: Boolean(e.isFruit),
+    createdAt: e.createdAt ?? "",
+    updatedAt: e.updatedAt ?? "",
+  };
+}
+
+/** Per-100 g catalog (from sync). */
+export async function fetchUniqueFoods(): Promise<UniqueFoodEntry[]> {
+  const data = await gasRequest<UniqueFoodEntry[]>({
+    action: "getUniqueFoods",
+  });
+  if (!Array.isArray(data)) return [];
+  return data.map((row) => normalizeUniqueFoodEntry(row as UniqueFoodEntry));
+}
+
+export async function syncUniqueFoodsCatalog(): Promise<{ upserted: number }> {
+  return gasRequest<{ upserted: number }>({ action: "syncUniqueFoods" });
+}
+
+export async function createUniqueFood(
+  payload: CreateUniqueFoodPayload
+): Promise<UniqueFoodEntry> {
+  return gasRequest<UniqueFoodEntry>({
+    action: "addUniqueFood",
+    ...payload,
+  });
+}
+
+export async function updateUniqueFood(
+  payload: UpdateUniqueFoodPayload
+): Promise<UniqueFoodEntry> {
+  return gasRequest<UniqueFoodEntry>({
+    action: "updateUniqueFood",
+    ...payload,
+  });
+}
+
+export async function removeUniqueFood(
+  id: string
+): Promise<{ deleted: boolean }> {
+  return gasRequest<{ deleted: boolean }>({
+    action: "deleteUniqueFood",
+    id,
+  });
 }
 
 /** All food rows (client may filter by date). */

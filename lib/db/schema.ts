@@ -8,6 +8,24 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+/**
+ * One row per distinct food name (case-insensitive key), macros per 100 g. Filled by sync from logs, diet book edits, or both.
+ */
+export const uniqueFoods = pgTable("unique_foods", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  /** lower(trim(name)) — dedupe key */
+  nameKey: text("name_key").notNull().unique(),
+  /** Display label (e.g. from most recently updated log) */
+  foodName: text("food_name").notNull(),
+  caloriesPer100g: real("calories_per_100g").notNull().default(0),
+  proteinPer100g: real("protein_per_100g").notNull().default(0),
+  fatPer100g: real("fat_per_100g").notNull().default(0),
+  fiberPer100g: real("fiber_per_100g").notNull().default(0),
+  isFruit: boolean("is_fruit").notNull().default(false),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 export const foods = pgTable("foods", {
   id: uuid("id").primaryKey().defaultRandom(),
   logDate: date("log_date", { mode: "string" }),
@@ -65,6 +83,7 @@ export const outputs = pgTable("outputs", {
   updatedAt: text("updated_at").notNull(),
 });
 
+export type UniqueFoodRow = typeof uniqueFoods.$inferSelect;
 export type FoodRow = typeof foods.$inferSelect;
 export type InputRow = typeof inputs.$inferSelect;
 export type OutputRow = typeof outputs.$inferSelect;

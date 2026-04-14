@@ -1,19 +1,22 @@
 import { INPUT_TARGETS } from "@/lib/inputTargets";
 import type {
   CreateFoodPayload,
+  CreateUniqueFoodPayload,
   DashboardSummary,
   FoodEntry,
   InputRecord,
   OutputRecord,
   SaveInputsPayload,
   SaveOutputsPayload,
+  UniqueFoodEntry,
+  UpdateUniqueFoodPayload,
 } from "@/lib/types";
 import { addDays } from "@/lib/utils";
-import { and, desc, eq, gte, isNotNull, lte, sql, sum } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNotNull, lte, ne, sql, sum } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { getDb } from "./client";
-import { foods, inputs, outputs } from "./schema";
-import type { FoodRow, InputRow, OutputRow } from "./schema";
+import { foods, inputs, outputs, uniqueFoods } from "./schema";
+import type { FoodRow, InputRow, OutputRow, UniqueFoodRow } from "./schema";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -55,6 +58,21 @@ function normalizeFoodRow(input: {
 }
 
 // --- mappers
+
+export function rowToUniqueFoodEntry(row: UniqueFoodRow): UniqueFoodEntry {
+  return {
+    id: row.id,
+    nameKey: row.nameKey,
+    foodName: row.foodName,
+    caloriesPer100g: Number(row.caloriesPer100g) || 0,
+    proteinPer100g: Number(row.proteinPer100g) || 0,
+    fatPer100g: Number(row.fatPer100g) || 0,
+    fiberPer100g: Number(row.fiberPer100g) || 0,
+    isFruit: row.isFruit ?? false,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
 
 export function rowToFoodEntry(row: FoodRow): FoodEntry {
   return {
@@ -210,6 +228,331 @@ async function syncInputMacrosFromFoodForDate(tx: any, dateIso: string): Promise
     .where(eq(inputs.date, dateIso));
 }
 
+// --- unique foods (per100 g, from sync)
+
+function foodNameToKey(raw: string): string {
+  return String(raw ?? "").trim().toLowerCase();
+}
+
+type UniqueFoodGroup = {
+  nameKey: string;
+  displayName: string;
+  latestUpdated: string;
+  sumW: number;
+  sumCal: number;
+  sumPro: number;
+  sumFat: number;
+  sumFib: number;
+  isFruit: boolean;
+};
+
+/**
+ * If there is no diet-book row yet for this name, insert one from logs (per-100 g =
+ * sum(macro)/sum(weight)*100 over log lines with weight &gt; 0). Never deletes or
+ * overwrites an existing `unique_foods` row (edits / sync handle updates).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function ensureUniqueFoodFromLogsTx(tx: any, nameKey: string): Promise<void> {
+  if (!nameKey) return;
+
+  const [already] = await tx
+    .select({ id: uniqueFoods.id })
+    .from(uniqueFoods)
+    .where(eq(uniqueFoods.nameKey, nameKey))
+    .limit(1);
+  if (already) return;
+
+  const rows = await tx
+    .select()
+    .from(foods)
+    .where(sql`lower(trim(${foods.foodName})) = ${nameKey}`);
+
+  let g: UniqueFoodGroup | null = null;
+  for (const row of rows) {
+    const rawName = String(row.foodName ?? "").trim();
+    if (!rawName) continue;
+    if (rawName.toLowerCase() !== nameKey) continue;
+    const w = Math.max(0, Number(row.weightGrams) || 0);
+    const updatedAt = String(row.updatedAt ?? "");
+
+    if (!g) {
+      g = {
+        nameKey,
+        displayName: rawName,
+        latestUpdated: updatedAt,
+        sumW: 0,
+        sumCal: 0,
+        sumPro: 0,
+        sumFat: 0,
+        sumFib: 0,
+        isFruit: false,
+      };
+    }
+
+    if (row.isFruit) g.isFruit = true;
+    if (updatedAt >= g.latestUpdated) {
+      g.latestUpdated = updatedAt;
+      g.displayName = rawName;
+    }
+
+    if (w > 0) {
+      g.sumW += w;
+      g.sumCal += Number(row.calories) || 0;
+      g.sumPro += Number(row.protein) || 0;
+      g.sumFat += Number(row.fat) || 0;
+      g.sumFib += Number(row.fiber) || 0;
+    }
+  }
+
+  if (!g || g.sumW <= 0) {
+    return;
+  }
+
+  const scale = 100 / g.sumW;
+  const t = nowIso();
+  await tx
+    .insert(uniqueFoods)
+    .values({
+      nameKey: g.nameKey,
+      foodName: g.displayName,
+      caloriesPer100g: g.sumCal * scale,
+      proteinPer100g: g.sumPro * scale,
+      fatPer100g: g.sumFat * scale,
+      fiberPer100g: g.sumFib * scale,
+      isFruit: g.isFruit,
+      createdAt: t,
+      updatedAt: t,
+    })
+    .onConflictDoNothing({ target: uniqueFoods.nameKey });
+}
+
+export async function listUniqueFoods(): Promise<UniqueFoodEntry[]> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(uniqueFoods)
+    .orderBy(asc(uniqueFoods.foodName));
+  return rows.map(rowToUniqueFoodEntry);
+}
+
+export async function createUniqueFood(
+  payload: CreateUniqueFoodPayload
+): Promise<UniqueFoodEntry> {
+  const name = String(payload.foodName ?? "").trim();
+  if (!name) {
+    throw new Error("Food name is required");
+  }
+  const nameKey = name.toLowerCase();
+  const db = getDb();
+  const [existing] = await db
+    .select({ id: uniqueFoods.id })
+    .from(uniqueFoods)
+    .where(eq(uniqueFoods.nameKey, nameKey))
+    .limit(1);
+  if (existing) {
+    throw new Error("A saved food with this name already exists");
+  }
+  const t = nowIso();
+  const [row] = await db
+    .insert(uniqueFoods)
+    .values({
+      nameKey,
+      foodName: name,
+      caloriesPer100g: Number(payload.caloriesPer100g) || 0,
+      proteinPer100g: Number(payload.proteinPer100g) || 0,
+      fatPer100g: Number(payload.fatPer100g) || 0,
+      fiberPer100g: Number(payload.fiberPer100g) || 0,
+      isFruit: Boolean(payload.isFruit),
+      createdAt: t,
+      updatedAt: t,
+    })
+    .returning();
+  return rowToUniqueFoodEntry(row!);
+}
+
+export async function updateUniqueFood(
+  payload: UpdateUniqueFoodPayload
+): Promise<UniqueFoodEntry> {
+  const db = getDb();
+  const t = nowIso();
+  const [cur] = await db
+    .select()
+    .from(uniqueFoods)
+    .where(eq(uniqueFoods.id, payload.id))
+    .limit(1);
+  if (!cur) {
+    throw new Error("Saved food not found: " + payload.id);
+  }
+
+  let foodName = cur.foodName;
+  let nameKey = cur.nameKey;
+  if (payload.foodName !== undefined) {
+    const n = String(payload.foodName).trim();
+    if (!n) {
+      throw new Error("Food name is required");
+    }
+    foodName = n;
+    nameKey = n.toLowerCase();
+  }
+
+  if (nameKey !== cur.nameKey) {
+    const [dup] = await db
+      .select({ id: uniqueFoods.id })
+      .from(uniqueFoods)
+      .where(and(eq(uniqueFoods.nameKey, nameKey), ne(uniqueFoods.id, payload.id)))
+      .limit(1);
+    if (dup) {
+      throw new Error("A saved food with this name already exists");
+    }
+  }
+
+  const [row] = await db
+    .update(uniqueFoods)
+    .set({
+      nameKey,
+      foodName,
+      caloriesPer100g:
+        payload.caloriesPer100g !== undefined
+          ? Number(payload.caloriesPer100g) || 0
+          : cur.caloriesPer100g,
+      proteinPer100g:
+        payload.proteinPer100g !== undefined
+          ? Number(payload.proteinPer100g) || 0
+          : cur.proteinPer100g,
+      fatPer100g:
+        payload.fatPer100g !== undefined
+          ? Number(payload.fatPer100g) || 0
+          : cur.fatPer100g,
+      fiberPer100g:
+        payload.fiberPer100g !== undefined
+          ? Number(payload.fiberPer100g) || 0
+          : cur.fiberPer100g,
+      isFruit:
+        payload.isFruit !== undefined ? Boolean(payload.isFruit) : cur.isFruit,
+      updatedAt: t,
+    })
+    .where(eq(uniqueFoods.id, payload.id))
+    .returning();
+
+  return rowToUniqueFoodEntry(row!);
+}
+
+export async function deleteUniqueFood(id: string): Promise<{ deleted: boolean }> {
+  const db = getDb();
+  const [cur] = await db
+    .select({ id: uniqueFoods.id })
+    .from(uniqueFoods)
+    .where(eq(uniqueFoods.id, id))
+    .limit(1);
+  if (!cur) {
+    throw new Error("Saved food not found: " + id);
+  }
+  await db.delete(uniqueFoods).where(eq(uniqueFoods.id, id));
+  return { deleted: true };
+}
+
+/**
+ * Rebuild `unique_foods` from `foods`: one row per trimmed name (case-insensitive).
+ * Macros are totals over rows with weight &gt; 0, scaled to per 100 g: sum(macro)/sum(weight)*100.
+ */
+export async function syncUniqueFoodsFromFoods(): Promise<{ upserted: number }> {
+  const db = getDb();
+  const all = await db.select().from(foods);
+  const t = nowIso();
+
+  type Group = {
+    nameKey: string;
+    displayName: string;
+    latestUpdated: string;
+    sumW: number;
+    sumCal: number;
+    sumPro: number;
+    sumFat: number;
+    sumFib: number;
+    isFruit: boolean;
+  };
+
+  const map = new Map<string, Group>();
+
+  for (const row of all) {
+    const rawName = String(row.foodName ?? "").trim();
+    if (!rawName) continue;
+    const nameKey = rawName.toLowerCase();
+    const w = Math.max(0, Number(row.weightGrams) || 0);
+    const updatedAt = String(row.updatedAt ?? "");
+
+    let g = map.get(nameKey);
+    if (!g) {
+      g = {
+        nameKey,
+        displayName: rawName,
+        latestUpdated: updatedAt,
+        sumW: 0,
+        sumCal: 0,
+        sumPro: 0,
+        sumFat: 0,
+        sumFib: 0,
+        isFruit: false,
+      };
+      map.set(nameKey, g);
+    }
+
+    if (row.isFruit) g.isFruit = true;
+    if (updatedAt >= g.latestUpdated) {
+      g.latestUpdated = updatedAt;
+      g.displayName = rawName;
+    }
+
+    if (w > 0) {
+      g.sumW += w;
+      g.sumCal += Number(row.calories) || 0;
+      g.sumPro += Number(row.protein) || 0;
+      g.sumFat += Number(row.fat) || 0;
+      g.sumFib += Number(row.fiber) || 0;
+    }
+  }
+
+  let upserted = 0;
+  for (const g of map.values()) {
+    if (g.sumW <= 0) continue;
+
+    const scale = 100 / g.sumW;
+    const caloriesPer100g = g.sumCal * scale;
+    const proteinPer100g = g.sumPro * scale;
+    const fatPer100g = g.sumFat * scale;
+    const fiberPer100g = g.sumFib * scale;
+
+    await db
+      .insert(uniqueFoods)
+      .values({
+        nameKey: g.nameKey,
+        foodName: g.displayName,
+        caloriesPer100g,
+        proteinPer100g,
+        fatPer100g,
+        fiberPer100g,
+        isFruit: g.isFruit,
+        createdAt: t,
+        updatedAt: t,
+      })
+      .onConflictDoUpdate({
+        target: uniqueFoods.nameKey,
+        set: {
+          foodName: g.displayName,
+          caloriesPer100g,
+          proteinPer100g,
+          fatPer100g,
+          fiberPer100g,
+          isFruit: g.isFruit,
+          updatedAt: t,
+        },
+      });
+    upserted++;
+  }
+
+  return { upserted };
+}
+
 // --- CRUD: foods
 
 export async function listAllFood(): Promise<FoodEntry[]> {
@@ -265,6 +608,7 @@ export async function createFood(
       })
       .returning();
     await syncInputMacrosFromFoodForDate(tx, d);
+    await ensureUniqueFoodFromLogsTx(tx, foodNameToKey(String(payload.foodName)));
     return [inserted];
   });
   return rowToFoodEntry(row!);
@@ -357,6 +701,12 @@ export async function updateFood(
       await syncInputMacrosFromFoodForDate(tx, oldDate);
     }
     await syncInputMacrosFromFoodForDate(tx, nextDate);
+
+    const nextFoodName =
+      payload.foodName !== undefined ? String(payload.foodName) : String(cur.foodName);
+    const newNameKey = foodNameToKey(nextFoodName);
+    await ensureUniqueFoodFromLogsTx(tx, newNameKey);
+
     return row;
   });
 

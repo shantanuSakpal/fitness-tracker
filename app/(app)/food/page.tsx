@@ -1,11 +1,5 @@
-import { Loader } from "@/components/common/Loader";
-import { Suspense } from "react";
-import { FoodClient } from "./FoodClient";
+import { redirect } from "next/navigation";
 
 export default function FoodPage() {
-  return (
-    <Suspense fallback={<Loader label="Loading…" />}>
-      <FoodClient />
-    </Suspense>
-  );
+  redirect("/dashboard");
 }
