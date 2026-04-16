@@ -331,7 +331,10 @@ export async function listUniqueFoods(): Promise<UniqueFoodEntry[]> {
   const rows = await db
     .select()
     .from(uniqueFoods)
-    .orderBy(asc(uniqueFoods.foodName));
+    .orderBy(
+      asc(sql`lower(${uniqueFoods.foodName})`),
+      asc(uniqueFoods.foodName)
+    );
   return rows.map(rowToUniqueFoodEntry);
 }
 

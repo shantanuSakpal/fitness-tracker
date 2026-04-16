@@ -27,6 +27,12 @@ function compareFoodRows(a: FoodEntry, b: FoodEntry, key: FoodSortKey): number {
   return a.id.localeCompare(b.id);
 }
 
+/** Newest `createdAt` first; `id` breaks ties (ISO timestamps compare lexicographically). */
+function compareByCreatedAtDesc(a: FoodEntry, b: FoodEntry): number {
+  const c = b.createdAt.localeCompare(a.createdAt);
+  return c !== 0 ? c : b.id.localeCompare(a.id);
+}
+
 function SortableTh({
   label,
   sortKey: columnKey,
@@ -92,11 +98,13 @@ export function FoodTable({
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const sortedRows = useMemo(() => {
-    if (!sortKey) return rows;
+    const copy = [...rows];
+    if (!sortKey) {
+      copy.sort(compareByCreatedAtDesc);
+      return copy;
+    }
     const dir = sortDir === "asc" ? 1 : -1;
-    return [...rows].sort(
-      (a, b) => compareFoodRows(a, b, sortKey) * dir
-    );
+    return copy.sort((a, b) => compareFoodRows(a, b, sortKey) * dir);
   }, [rows, sortKey, sortDir]);
 
   function handleSort(key: FoodSortKey) {

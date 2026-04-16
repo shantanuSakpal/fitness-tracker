@@ -12,11 +12,31 @@ type SortKey =
   | "fatPer100g"
   | "fiberPer100g";
 
+/** Case-insensitive primary order; ties broken so lowercase sorts before uppercase. */
+function compareFoodNamesAlphabetically(a: string, b: string): number {
+  const primary = a.toLowerCase().localeCompare(b.toLowerCase(), undefined, {
+    sensitivity: "base",
+  });
+  if (primary !== 0) return primary;
+
+  const len = Math.min(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    if (a[i] === b[i]) continue;
+    const al = a[i].toLowerCase();
+    const bl = b[i].toLowerCase();
+    if (al !== bl) {
+      return al.localeCompare(bl, undefined, { sensitivity: "base" });
+    }
+    const aIsLower = a[i] === al;
+    const bIsLower = b[i] === bl;
+    if (aIsLower !== bIsLower) return aIsLower ? -1 : 1;
+  }
+  return a.length - b.length;
+}
+
 function compare(a: UniqueFoodEntry, b: UniqueFoodEntry, key: SortKey): number {
   if (key === "foodName") {
-    const cmp = a.foodName.localeCompare(b.foodName, undefined, {
-      sensitivity: "base",
-    });
+    const cmp = compareFoodNamesAlphabetically(a.foodName, b.foodName);
     if (cmp !== 0) return cmp;
   } else {
     const va = a[key] ?? 0;
@@ -80,7 +100,7 @@ export function UniqueFoodsTable({
   onDelete: (id: string) => void;
   busyId: string | null;
 }) {
-  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey | null>("foodName");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const sorted = useMemo(() => {
