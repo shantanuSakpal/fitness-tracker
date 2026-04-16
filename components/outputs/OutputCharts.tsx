@@ -75,7 +75,7 @@ export function OutputCharts({
         </div>
       )}
 
-      {(thisAvg !== null || lastAvg !== null) && (
+      {/* {(thisAvg !== null || lastAvg !== null) && (
         <div className="rounded-xl border border-zinc-200/80 bg-white p-4 shadow-sm">
           <h4 className="text-sm font-semibold text-zinc-900">
             Weekly comparison
@@ -120,7 +120,7 @@ export function OutputCharts({
         <div className="rounded-xl border border-zinc-200/80 bg-white p-4 shadow-sm">
           <h4 className="text-sm font-semibold text-zinc-900">Trends</h4>
           <p className="mt-1 text-xs text-zinc-500">
-            Body weight and calories consumed (from inputs)
+            All logged days — body weight and calories consumed (from inputs)
           </p>
           <div className="mt-4 h-64 w-full min-w-0">
             <ResponsiveContainer width="100%" height="100%">
@@ -171,7 +171,7 @@ export function OutputCharts({
           Add more historical rows to see the line chart. Today:{" "}
           {todayISODate()}.
         </p>
-      )}
+      )} */}
     </div>
   );
 }

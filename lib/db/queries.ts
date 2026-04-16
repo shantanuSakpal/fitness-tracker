@@ -820,6 +820,13 @@ export async function getOutputByDate(dateIso: string): Promise<OutputRecord | n
   return row ? rowToOutputRecord(row) : null;
 }
 
+/** All output rows, newest date first (for history UI). */
+export async function listAllOutputs(): Promise<OutputRecord[]> {
+  const db = getDb();
+  const rows = await db.select().from(outputs).orderBy(desc(outputs.date));
+  return rows.map(rowToOutputRecord);
+}
+
 export async function saveOutput(
   payload: SaveOutputsPayload
 ): Promise<OutputRecord> {
@@ -952,7 +959,11 @@ export async function getDashboardSummary(dateIso: string): Promise<DashboardSum
   };
 }
 
-export async function getTrendData(days: number): Promise<
+/**
+ * Merged input/output trend points by date.
+ * @param days Window length ending at the latest input/output date, or `null` for all time.
+ */
+export async function getTrendData(days: number | null): Promise<
   {
     date: string;
     bodyWeight: number | null;
@@ -972,7 +983,20 @@ export async function getTrendData(days: number): Promise<
   if (candidates.length === 0) return [];
 
   const cutoff = candidates.reduce((a, b) => (a > b ? a : b));
-  const minStr = addDays(cutoff, -(Math.max(1, days) - 1));
+  let minStr: string;
+  if (days == null) {
+    const [inMin] = await db
+      .select({ d: sql<string | null>`min(${inputs.date})` })
+      .from(inputs);
+    const [outMin] = await db
+      .select({ d: sql<string | null>`min(${outputs.date})` })
+      .from(outputs);
+    const mins = [inMin?.d, outMin?.d].filter(Boolean) as string[];
+    if (mins.length === 0) return [];
+    minStr = mins.reduce((a, b) => (a < b ? a : b));
+  } else {
+    minStr = addDays(cutoff, -(Math.max(1, days) - 1));
+  }
 
   const inRows = await db
     .select({

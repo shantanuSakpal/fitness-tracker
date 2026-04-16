@@ -4,7 +4,9 @@ import { DateSelectorBar } from "@/components/common/DateSelector";
 import { Loader } from "@/components/common/Loader";
 import { OutputCharts } from "@/components/outputs/OutputCharts";
 import { OutputForm } from "@/components/outputs/OutputForm";
+import { OutputHistoryTable } from "@/components/outputs/OutputHistoryTable";
 import {
+  fetchAllOutputs,
   fetchOutputsByDate,
   fetchTrendData,
   GasApiError,
@@ -21,6 +23,7 @@ export function OutputsClient() {
   const date = params.get("date") || todayISODate();
 
   const [record, setRecord] = useState<OutputRecord | null>(null);
+  const [history, setHistory] = useState<OutputRecord[]>([]);
   const [trends, setTrends] = useState<TrendPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -28,12 +31,14 @@ export function OutputsClient() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [r, t] = await Promise.all([
+      const [r, t, h] = await Promise.all([
         fetchOutputsByDate(date),
-        fetchTrendData(120),
+        fetchTrendData(0),
+        fetchAllOutputs(),
       ]);
       setRecord(r);
       setTrends(t);
+      setHistory(h);
     } catch (e) {
       toast.error(
         e instanceof GasApiError ? e.message : "Failed to load outputs"
@@ -86,6 +91,17 @@ export function OutputsClient() {
             onSave={onSave}
             busy={busy}
           />
+          <section className="space-y-3">
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-900">
+                Output history
+              </h2>
+              <p className="mt-0.5 text-xs text-zinc-500">
+                Every saved day, newest first. Open a date to edit.
+              </p>
+            </div>
+            <OutputHistoryTable rows={history} selectedDate={date} />
+          </section>
         </>
       )}
     </div>

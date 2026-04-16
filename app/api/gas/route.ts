@@ -175,6 +175,11 @@ export async function POST(req: Request) {
           ok: true,
           data: await queries.getOutputByDate(String(body.date)),
         });
+      case "getAllOutputs":
+        return NextResponse.json({
+          ok: true,
+          data: await queries.listAllOutputs(),
+        });
       case "saveOutputs":
         return NextResponse.json({
           ok: true,
@@ -198,13 +203,20 @@ export async function POST(req: Request) {
           ok: true,
           data: await queries.getDashboardSummary(String(body.date)),
         });
-      case "getTrendData":
+      case "getTrendData": {
+        const raw = parseInt(String(body.days), 10);
+        const useAllTime = body.all === true || raw === 0;
+        const windowDays =
+          useAllTime
+            ? null
+            : Number.isFinite(raw) && raw > 0
+              ? raw
+              : 90;
         return NextResponse.json({
           ok: true,
-          data: await queries.getTrendData(
-            parseInt(String(body.days), 10) || 90
-          ),
+          data: await queries.getTrendData(windowDays),
         });
+      }
       default:
         return NextResponse.json(
           { ok: false, error: "Unknown action: " + action },

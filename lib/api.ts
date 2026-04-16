@@ -239,6 +239,13 @@ export async function fetchOutputsByDate(
   });
 }
 
+export async function fetchAllOutputs(): Promise<OutputRecord[]> {
+  const data = await gasRequest<OutputRecord[]>({
+    action: "getAllOutputs",
+  });
+  return Array.isArray(data) ? data : [];
+}
+
 export async function saveOutputs(
   payload: SaveOutputsPayload
 ): Promise<OutputRecord> {
@@ -254,7 +261,10 @@ export async function fetchDashboardSummary(
   });
 }
 
-export async function fetchTrendData(days = 90): Promise<TrendPoint[]> {
+/**
+ * Trend series for charts. Pass `0` to load all logged days (no trailing window cap).
+ */
+export async function fetchTrendData(days: number = 90): Promise<TrendPoint[]> {
   const data = await gasRequest<TrendPoint[]>({
     action: "getTrendData",
     days,
