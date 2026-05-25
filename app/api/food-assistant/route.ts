@@ -24,9 +24,9 @@ function safeSelectedDate(raw: unknown): string {
 }
 
 export async function POST(req: Request) {
-  if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+  if (!process.env.GROQ_API_KEY) {
     return new Response(
-      "Server misconfiguration: set GOOGLE_GENERATIVE_AI_API_KEY to enable the food assistant.",
+      "Server misconfiguration: set GROQ_API_KEY to enable the food assistant.",
       { status: 503 },
     );
   }
