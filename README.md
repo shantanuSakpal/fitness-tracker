@@ -25,7 +25,8 @@ Pick a date and get a summary: nutrition vs targets, key habits, recent notes, a
 The app is a Next.js project backed by PostgreSQL (e.g. Neon). To run locally:
 
 1. Create a database and set `POSTGRES_URL` in `.env` (see `.env.example`).
-2. Apply the schema: `npm run db:push`
-3. Start the app: `npm run dev`
+2. Set `GOOGLE_GENERATIVE_AI_API_KEY` to enable the dashboard food assistant. Optionally set `OPENAI_MODEL` to override the default `gpt-4.1-mini` model.
+3. Apply the schema: `npm run db:push`
+4. Start the app: `npm run dev`
 
 For production, configure the same database URL on your host and run `npm run build` after migrations are applied to the production database.

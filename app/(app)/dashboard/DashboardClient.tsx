@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { DateSelectorBar } from "@/components/common/DateSelector";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Loader } from "@/components/common/Loader";
 import { InputProgressBars } from "@/components/dashboard/InputProgressBars";
+import { FoodAssistant } from "@/components/food/FoodAssistant";
 import { FoodForm } from "@/components/food/FoodForm";
 import { FoodTable } from "@/components/food/FoodTable";
 import {
@@ -31,38 +31,56 @@ export function DashboardClient() {
   const [rows, setRows] = useState<FoodEntry[]>([]);
   const [uniqueFoods, setUniqueFoods] = useState<UniqueFoodEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<FoodEntry | null>(null);
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [syncCatalogBusy, setSyncCatalogBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [s, data, catalog] = await Promise.all([
-        fetchDashboardSummary(date),
-        fetchAllFood(),
-        fetchUniqueFoods(),
-      ]);
-      setSummary(s);
-      setRows(data);
-      setUniqueFoods(catalog);
-    } catch (e) {
-      const msg =
-        e instanceof GasApiError
-          ? e.message
-          : e instanceof Error
+  const load = useCallback(
+    async (options?: { preserveContent?: boolean }) => {
+      const preserveContent = Boolean(options?.preserveContent);
+
+      setError(null);
+
+      if (preserveContent) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      try {
+        const [s, data, catalog] = await Promise.all([
+          fetchDashboardSummary(date),
+          fetchAllFood(),
+          fetchUniqueFoods(),
+        ]);
+        setSummary(s);
+        setRows(data);
+        setUniqueFoods(catalog);
+      } catch (e) {
+        const msg =
+          e instanceof GasApiError
             ? e.message
-            : "Failed to load dashboard";
-      setError(msg);
-      setSummary(null);
-      toast.error(msg);
-    } finally {
-      setLoading(false);
-    }
-  }, [date]);
+            : e instanceof Error
+              ? e.message
+              : "Failed to load dashboard";
+        setError(msg);
+        if (!preserveContent) {
+          setSummary(null);
+        }
+        toast.error(msg);
+      } finally {
+        if (preserveContent) {
+          setRefreshing(false);
+        } else {
+          setLoading(false);
+        }
+      }
+    },
+    [date],
+  );
 
   useEffect(() => {
     load();
@@ -71,7 +89,7 @@ export function DashboardClient() {
 
   const displayRows = useMemo(
     () => rows.filter((r) => r.date === date),
-    [rows, date]
+    [rows, date],
   );
 
   async function onSyncCatalog() {
@@ -81,9 +99,9 @@ export function DashboardClient() {
       toast.success(
         upserted === 0
           ? "No new catalog rows — add foods with weight in your log, then sync again."
-          : `Saved foods catalog updated (${upserted} item${upserted === 1 ? "" : "s"}).`
+          : `Saved foods catalog updated (${upserted} item${upserted === 1 ? "" : "s"}).`,
       );
-      await load();
+      await load({ preserveContent: true });
     } catch (e) {
       toast.error(e instanceof GasApiError ? e.message : "Sync failed");
     } finally {
@@ -135,11 +153,11 @@ export function DashboardClient() {
           notes: payload.notes,
         });
         toast.success(
-          "Food logged — inputs updated (calories, protein, fibre, fruit)"
+          "Food logged — inputs updated (calories, protein, fibre, fruit)",
         );
       }
       setEditing(null);
-      await load();
+      await load({ preserveContent: true });
     } catch (e) {
       toast.error(e instanceof GasApiError ? e.message : "Save failed");
     } finally {
@@ -158,7 +176,7 @@ export function DashboardClient() {
       await removeFood(id);
       toast.success("Deleted — inputs recalculated for that date");
       if (editing?.id === id) setEditing(null);
-      await load();
+      await load({ preserveContent: true });
     } catch (e) {
       toast.error(e instanceof GasApiError ? e.message : "Delete failed");
     } finally {
@@ -176,6 +194,9 @@ export function DashboardClient() {
           <p className="mt-1 text-sm text-zinc-600">
             Overview and food log for {formatDisplayDate(date)}
           </p>
+          {refreshing && !loading ? (
+            <p className="mt-1 text-xs text-zinc-500">Refreshing data…</p>
+          ) : null}
         </div>
         <DateSelectorBar className="max-w-md" />
       </header>
@@ -198,43 +219,31 @@ export function DashboardClient() {
       )}
       {!loading && !error && summary && (
         <>
-          <InputProgressBars summary={summary} />
+          <FoodAssistant
+            key={date}
+            selectedDate={date}
+            onSaved={() => load({ preserveContent: true })}
+          />
+          <FoodForm
+            key={editing?.id ?? "food-new"}
+            selectedDate={date}
+            editing={editing}
+            onSubmit={onSubmitFood}
+            onCancelEdit={() => setEditing(null)}
+            busy={busy}
+            uniqueFoods={uniqueFoods}
+            onSyncCatalog={onSyncCatalog}
+            syncCatalogBusy={syncCatalogBusy}
+          />
+          <FoodTable
+            rows={displayRows}
+            showDateColumn={false}
+            onEdit={setEditing}
+            onDelete={onDeleteFood}
+            busyId={busyId}
+          />
 
-          <section className="space-y-4">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-sm font-semibold text-zinc-900">
-                Food for this day
-              </h2>
-              <p className="text-xs text-zinc-500">
-                Totals roll into the progress bars above. Per-100 g presets come from{" "}
-                <Link
-                  href="/diet-book"
-                  className="font-medium text-zinc-800 underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-600"
-                >
-                  Your Diet Book
-                </Link>
-                .
-              </p>
-            </div>
-            <FoodForm
-              key={editing?.id ?? "food-new"}
-              selectedDate={date}
-              editing={editing}
-              onSubmit={onSubmitFood}
-              onCancelEdit={() => setEditing(null)}
-              busy={busy}
-              uniqueFoods={uniqueFoods}
-              onSyncCatalog={onSyncCatalog}
-              syncCatalogBusy={syncCatalogBusy}
-            />
-            <FoodTable
-              rows={displayRows}
-              showDateColumn={false}
-              onEdit={setEditing}
-              onDelete={onDeleteFood}
-              busyId={busyId}
-            />
-          </section>
+          <InputProgressBars summary={summary} />
         </>
       )}
     </div>
